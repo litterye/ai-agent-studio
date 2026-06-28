@@ -8,6 +8,8 @@ import { getApprovalsConfig } from '../approvals/config'
 import { getWorkspaceConfig } from '../config/workspaceConfig'
 import { buildSkillsIndex } from '../skills/promptBuilder'
 import { loadSoul } from '../identity/soul'
+import { memoryService } from '../memory/MemoryService'
+import type { MemoryRow } from '../db/memoryStore'
 
 export type { AgentCallbacks, RunContext } from './runners/types'
 
@@ -21,6 +23,7 @@ export class AgentService {
 
   /**
    * Run the agent. `sessionKey` identifies the conversation for cwd resolution.
+   * `sessionId` is the DB session ID (for memory extraction tracing).
    * `overrides` allows per-session model/protocol overrides from the DB.
    */
   async run(
@@ -28,6 +31,7 @@ export class AgentService {
     history: ChatMessage[],
     cb: AgentCallbacks,
     sessionKey?: string | null,
+    sessionId?: string | null,
     overrides?: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string }
   ): Promise<void> {
     try {
@@ -46,12 +50,17 @@ export class AgentService {
       // Build tool list filtered by active toolsets
       const tools = await toolRegistry.forSession(activeToolsets)
 
+      // Retrieve relevant cross-session memories
+      const lastUserMsg = history.filter((m) => m.role === 'user').pop()?.content ?? ''
+      const relevantMemories = memoryService.getRelevant(lastUserMsg, 5)
+
       const system = buildSystemPrompt({
         tools,
         activeToolsets,
         cwd,
         model,
-        protocol
+        protocol,
+        memories: relevantMemories
       })
 
       const ctx: RunContext = {
@@ -62,7 +71,8 @@ export class AgentService {
         protocolOverride: overrides?.protocol,
         effortOverride: overrides?.effort,
         baseUrlOverride: overrides?.baseUrl,
-        visionModeOverride: overrides?.visionMode
+        visionModeOverride: overrides?.visionMode,
+        sessionId: sessionId ?? undefined
       }
 
       // Side-channel so the terminal builtin (and any other tool that
@@ -99,6 +109,7 @@ interface PromptParts {
   cwd: string
   model: string
   protocol: string
+  memories: MemoryRow[]
 }
 
 function buildSystemPrompt(parts: PromptParts): string {
@@ -117,6 +128,11 @@ function buildSystemPrompt(parts: PromptParts): string {
     'You can mention this when asked "what model are you?" or "what LLM is this?". ' +
     'Do not make up capabilities — only claim what this model actually supports.'
   )
+
+  // ── Stable tier: cross-session memories ──────────────────────────────
+  if (parts.memories.length > 0) {
+    blocks.push(memoryService.formatForPrompt(parts.memories))
+  }
 
   // ── Stable tier: environment & tools context ───────────────────────
   blocks.push(

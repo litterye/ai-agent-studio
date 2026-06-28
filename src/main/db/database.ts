@@ -160,4 +160,20 @@ function runMigrations(): void {
   try { d.run(`ALTER TABLE messages ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]'`) } catch { /* column already exists */ }
   try { d.run(`ALTER TABLE messages ADD COLUMN usage_json TEXT NOT NULL DEFAULT '{}'`) } catch { /* column already exists */ }
   try { d.run(`ALTER TABLE models ADD COLUMN vision_mode TEXT NOT NULL DEFAULT 'text'`) } catch { /* column already exists */ }
+
+  // Memories table (v2 — cross-session persistent memory)
+  d.run(`
+    CREATE TABLE IF NOT EXISTS memories (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL CHECK(type IN ('fact','preference','feedback','learning')),
+      content TEXT NOT NULL,
+      keywords TEXT NOT NULL DEFAULT '',
+      importance INTEGER NOT NULL DEFAULT 5,
+      source_session_id TEXT,
+      access_count INTEGER NOT NULL DEFAULT 0,
+      last_accessed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `)
 }

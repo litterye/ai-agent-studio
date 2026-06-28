@@ -18,7 +18,7 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useSettingsStore } from '../stores/settings'
-import type { ModelConfigDTO } from '@shared/ipc'
+import type { ModelConfigDTO, MemoryEntryDTO } from '@shared/ipc'
 import ModelDialog from '../components/ModelDialog.vue'
 
 const settings = useSettingsStore()
@@ -133,6 +133,84 @@ async function resetSoul(): Promise<void> {
   soulContent.value = await window.api.soul.getDefault()
 }
 
+// ─── Memory (cross-session persistent knowledge) ──────────────────────────
+
+const memories = ref<MemoryEntryDTO[]>([])
+const loadingMemories = ref(false)
+
+async function loadMemories(): Promise<void> {
+  loadingMemories.value = true
+  try {
+    memories.value = await window.api.memory.list()
+  } finally {
+    loadingMemories.value = false
+  }
+}
+
+async function deleteMemory(id: string): Promise<void> {
+  await window.api.memory.delete(id)
+  await loadMemories()
+  message.success('记忆已删除')
+}
+
+async function clearAllMemories(): Promise<void> {
+  await window.api.memory.clear()
+  await loadMemories()
+  message.success('所有记忆已清除')
+}
+
+const typeOptions: Record<string, { label: string; color: string }> = {
+  fact: { label: '事实', color: '#4ec9b0' },
+  preference: { label: '偏好', color: '#569cd6' },
+  feedback: { label: '反馈', color: '#ce9178' },
+  learning: { label: '学习', color: '#c586c0' }
+}
+
+const memoryColumns: DataTableColumns<MemoryEntryDTO> = [
+  {
+    title: '类型', key: 'type', width: 80,
+    render: (row) => {
+      const info = typeOptions[row.type] ?? { label: row.type, color: '#888' }
+      return h('span', {
+        style: {
+          display: 'inline-block',
+          padding: '1px 8px',
+          borderRadius: '10px',
+          fontSize: '12px',
+          fontWeight: '600',
+          background: info.color + '22',
+          color: info.color
+        }
+      }, info.label)
+    }
+  },
+  { title: '内容', key: 'content', ellipsis: { tooltip: true } },
+  {
+    title: '重要性', key: 'importance', width: 70, align: 'center',
+    render: (row) => {
+      const bars = '★'.repeat(Math.min(row.importance, 10))
+      return h('span', { style: { color: '#dcdcaa', fontSize: '12px' } }, bars)
+    }
+  },
+  { title: '来源会话', key: 'sourceSessionId', width: 120, ellipsis: { tooltip: true } },
+  {
+    title: '访问', key: 'accessCount', width: 50, align: 'center',
+    render: (row) => String(row.accessCount)
+  },
+  {
+    title: '创建时间', key: 'createdAt', width: 140,
+    render: (row) => row.createdAt.slice(0, 10) + ' ' + row.createdAt.slice(11, 16)
+  },
+  {
+    title: '操作', key: 'actions', width: 80,
+    render: (row) =>
+      h(NPopconfirm, { onPositiveClick: () => deleteMemory(row.id) }, {
+        trigger: () => h(NButton, { size: 'tiny', type: 'error' }, { default: () => '删除' }),
+        default: () => '确定删除此记忆？'
+      })
+  }
+]
+
 // ─── About ──────────────────────────────────────────────────────────────
 
 const appVersion = ref('')
@@ -147,6 +225,7 @@ async function checkUpdate(): Promise<void> {
   await settings.load()
   await loadModels()
   await loadSoul()
+  await loadMemories()
   appVersion.value = await window.api.app.getVersion()
 })
 </script>
@@ -234,6 +313,42 @@ async function checkUpdate(): Promise<void> {
               </NSpace>
             </NFormItem>
           </NForm>
+        </div>
+      </NTabPane>
+
+      <!-- 记忆管理 -->
+      <NTabPane name="memory" tab="记忆">
+        <div class="tab-content">
+          <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 12px;">
+            <span style="opacity:0.55; font-size:13px;">
+              共 {{ memories.length }} 条记忆 · Agent 会在对话中自动学习并保存
+            </span>
+            <div style="flex:1"></div>
+            <NPopconfirm
+              v-if="memories.length > 0"
+              @positive-click="clearAllMemories"
+            >
+              <template #trigger>
+                <NButton size="small" type="error" secondary>
+                  清除全部
+                </NButton>
+              </template>
+              确定清除所有记忆？此操作不可撤消。
+            </NPopconfirm>
+          </div>
+
+          <NDataTable
+            :columns="memoryColumns"
+            :data="memories"
+            :bordered="false"
+            :single-line="false"
+            size="small"
+            :row-key="(row) => row.id"
+            :loading="loadingMemories"
+          />
+          <div v-if="!loadingMemories && memories.length === 0" style="opacity:0.4; text-align:center; padding:40px">
+            暂无记忆 · Agent 会在对话过程中自动提取重要信息保存到这里
+          </div>
         </div>
       </NTabPane>
 

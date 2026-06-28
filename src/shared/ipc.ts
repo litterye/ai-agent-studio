@@ -264,6 +264,20 @@ export interface ModelConfigDTO {
   updatedAt: string
 }
 
+/** A single memory entry — cross-session persistent knowledge. */
+export interface MemoryEntryDTO {
+  id: string
+  type: 'fact' | 'preference' | 'feedback' | 'learning'
+  content: string
+  keywords: string
+  importance: number
+  sourceSessionId: string
+  accessCount: number
+  lastAccessedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export const IPC = {
   AgentSend: 'agent:send',
   AgentCancel: 'agent:cancel',
@@ -332,5 +346,8 @@ export const IPC = {
   SoulGet: 'soul:get',
   SoulSet: 'soul:set',
   SoulGetDefault: 'soul:get-default',
-  AppGetWorkspaceBase: 'app:get-workspace-base'
+  AppGetWorkspaceBase: 'app:get-workspace-base',
+  MemoryList: 'memory:list',
+  MemoryDelete: 'memory:delete',
+  MemoryClear: 'memory:clear'
 } as const

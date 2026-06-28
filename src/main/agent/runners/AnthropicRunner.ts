@@ -17,6 +17,7 @@ import {
   MAX_TURNS,
   WRAP_UP_TURN
 } from './types'
+import { memoryService } from '../../memory/MemoryService'
 
 /** Manual agentic loop over the Anthropic Messages API (streaming). */
 export class AnthropicRunner implements AgentRunner {
@@ -80,6 +81,10 @@ export class AnthropicRunner implements AgentRunner {
         continue
       }
       if (message.stop_reason !== 'tool_use') {
+        // Fire-and-forget memory extraction (don't block the done event)
+        if (ctx?.sessionId) {
+          memoryService.extractAndStore(history, effectiveModel, 'anthropic', ctx.sessionId)
+        }
         return cb.emit({ type: 'done', runId, finalText })
       }
 
@@ -117,6 +122,10 @@ export class AnthropicRunner implements AgentRunner {
         })
       }
       messages.push({ role: 'user', content: toolResults })
+    }
+    // Fire-and-forget memory extraction (don't block the done event)
+    if (ctx?.sessionId) {
+      memoryService.extractAndStore(history, effectiveModel, 'anthropic', ctx.sessionId)
     }
     cb.emit({ type: 'done', runId, finalText })
   }

@@ -40,6 +40,8 @@ export interface RunContext {
   baseUrlOverride?: string
   /** Per-session vision mode override. 'auto' | 'native' | 'text'. Falls back to 'text'. */
   visionModeOverride?: string
+  /** DB session ID — used for memory extraction tracing. */
+  sessionId?: string
 }
 
 /** A provider-specific implementation of the agentic loop. */

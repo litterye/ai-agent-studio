@@ -166,6 +166,11 @@ const api = {
     set: (content: string): Promise<{ ok: boolean }> => ipcRenderer.invoke(IPC.SoulSet, content),
     getDefault: (): Promise<string> => ipcRenderer.invoke(IPC.SoulGetDefault)
   },
+  memory: {
+    list: (): Promise<import('@shared/ipc').MemoryEntryDTO[]> => ipcRenderer.invoke(IPC.MemoryList),
+    delete: (id: string): Promise<boolean> => ipcRenderer.invoke(IPC.MemoryDelete, id),
+    clear: (): Promise<void> => ipcRenderer.invoke(IPC.MemoryClear)
+  },
   models: {
     list: (): Promise<ModelConfigDTO[]> => ipcRenderer.invoke(IPC.ModelList),
     create: (input: { name: string; protocol: 'anthropic' | 'openai'; baseUrl?: string; modelId: string; apiKey?: string; visionMode?: string }): Promise<ModelConfigDTO> =>

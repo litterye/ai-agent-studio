@@ -54,6 +54,7 @@ import { messageStore } from '../db/messageStore'
 import { modelStore } from '../db/modelStore'
 import { paths } from '../approvals/paths'
 import { loadSoul, saveSoul, getDefaultSoul } from '../identity/soul'
+import { memoryService } from '../memory/MemoryService'
 
 interface PendingConfirm {
   resolve: (res: { approved: boolean; sessionAlways?: boolean }) => void
@@ -111,6 +112,7 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
           })
       },
       req.sessionKey ?? null,
+      req.sessionId ?? null,
       overrides
     )
   })
@@ -557,6 +559,16 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
   })
 
   ipcMain.handle(IPC.SoulGetDefault, (): string => getDefaultSoul())
+
+  // ─── Memory (cross-session persistent knowledge) ───────────────────────
+
+  ipcMain.handle(IPC.MemoryList, () => memoryService.getAll())
+
+  ipcMain.handle(IPC.MemoryDelete, (_e, id: string): boolean => memoryService.remove(id))
+
+  ipcMain.handle(IPC.MemoryClear, () => {
+    memoryService.clear()
+  })
 
   ipcMain.handle(IPC.AppGetWorkspaceBase, (): string => {
     return join(paths.home, 'workspace')

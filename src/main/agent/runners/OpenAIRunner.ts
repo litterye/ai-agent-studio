@@ -20,6 +20,7 @@ import {
   MAX_TURNS,
   WRAP_UP_TURN
 } from './types'
+import { memoryService } from '../../memory/MemoryService'
 
 /** Accumulates streamed tool-call fragments keyed by their stream index. */
 interface PartialToolCall {
@@ -84,6 +85,10 @@ export class OpenAIRunner implements AgentRunner {
       }
 
       if (toolCalls.length === 0) {
+        // Fire-and-forget memory extraction (don't block the done event)
+        if (ctx?.sessionId) {
+          memoryService.extractAndStore(history, effectiveModel, 'openai', ctx.sessionId)
+        }
         return cb.emit({ type: 'done', runId, finalText })
       }
 
@@ -117,6 +122,10 @@ export class OpenAIRunner implements AgentRunner {
           content: outcome.isError ? `Error: ${outcome.content}` : outcome.content
         })
       }
+    }
+    // Fire-and-forget memory extraction (don't block the done event)
+    if (ctx?.sessionId) {
+      memoryService.extractAndStore(history, effectiveModel, 'openai', ctx.sessionId)
     }
     cb.emit({ type: 'done', runId, finalText })
   }
