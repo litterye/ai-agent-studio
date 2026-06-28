@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, h } from 'vue'
+import { ref, onMounted, h } from 'vue'
 import {
   NDataTable, NButton, NTag, NSpace, NModal, NForm, NFormItem,
-  NInput, NSelect, NSwitch, NText, NEmpty, NSpin,
-  NScrollbar, NCard, useMessage, NPopconfirm
+  NInput, NSwitch, NText, NEmpty, useMessage, NPopconfirm
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import type { CronJobDTO, CronStatusDTO } from '@shared/ipc'
@@ -23,8 +22,6 @@ const form = ref({
   workdir: '',
   paused: false
 })
-
-const toolsetsAll = ['file', 'terminal', 'skills']
 
 function resetForm(): void {
   form.value = { id: '', name: '', scheduleInput: '', prompt: '', enabledToolsets: '', workdir: '', paused: false }

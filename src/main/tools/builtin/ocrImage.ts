@@ -65,6 +65,15 @@ const def: BuiltinToolDef<Input> = {
   async handler(input) {
     const lang = input.language?.trim() || 'eng'
 
+    // Reject images over the size limit (avoid OOM)
+    const { stat } = await import('fs/promises')
+    const fileStat = await stat(input.path)
+    if (fileStat.size > MAX_IMAGE_BYTES) {
+      throw new Error(
+        `Image too large: ${(fileStat.size / 1024 / 1024).toFixed(1)} MB (max 20 MB)`
+      )
+    }
+
     // Dynamically import tesseract.js — keeps the main bundle lean
     const { createWorker } = await import('tesseract.js')
 

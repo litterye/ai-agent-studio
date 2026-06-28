@@ -38,7 +38,7 @@ export class AnthropicRunner implements AgentRunner {
     const effectiveVision = resolveVisionMode(effectiveModel, ctx?.visionModeOverride ?? 'text')
     const messages: MessageParam[] = history.map((m) => ({
       role: m.role,
-      content: m.attachments?.length ? toAnthropicContent(m, effectiveVision) : m.content
+      content: (m.attachments?.length ? toAnthropicContent(m, effectiveVision) : m.content) as MessageParam['content']
     }))
     let finalText = ''
     let totalInputTokens = 0

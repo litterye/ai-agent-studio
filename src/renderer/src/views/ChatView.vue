@@ -472,7 +472,7 @@ onUnmounted(() => unsubConfirm?.())
 
     <NModal
       :show="pendingConfirm !== null"
-      :to="chatEl"
+      :to="chatEl ?? undefined"
       preset="card"
       :bordered="false"
       :mask-closable="false"

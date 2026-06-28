@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import type { AgentEvent, ChatMessage, MessageDTO, AttachmentMeta } from '@shared/ipc'
 import { useSessionStore } from './sessions'
-import { useAgentStore } from './agents'
 
 export interface ToolCallView {
   id: string
@@ -212,7 +211,6 @@ export const useConversationStore = defineStore('conversation', () => {
     running.value = true
 
     // Include sessionId so main process can look up model/protocol overrides
-    const agentStore = useAgentStore()
     window.api.agent.send({
       runId,
       messages: history,

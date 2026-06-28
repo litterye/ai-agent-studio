@@ -2,8 +2,7 @@
 import { ref, onMounted, h } from 'vue'
 import {
   NDataTable, NButton, NTag, NSpace, NModal, NForm,
-  NFormItem, NInput, NInputNumber, NDynamicTags,
-  useMessage
+  NFormItem, NInput, useMessage
 } from 'naive-ui'
 import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
 import type { McpServerStatusDTO, McpServerConfigDTO } from '@shared/ipc'
@@ -113,7 +112,7 @@ const columns: DataTableColumns<McpServerStatusDTO> = [
     render: (row) =>
       h(
         NSpace,
-        { size: 'tiny' },
+        { size: 'tiny' as any },
         () => (row.config.args?.length
           ? row.config.args.map((a) => h(NTag, { size: 'tiny' }, () => a))
           : [h('span', { style: { opacity: 0.5 } }, '—')]

@@ -53,7 +53,7 @@ export class OpenAIRunner implements AgentRunner {
       .map((m) => ({
         role: m.role,
         content: m.attachments?.length ? toOpenAIContent(m, effectiveVision) : m.content
-      }))
+      })) as ChatCompletionMessageParam[]
     // OpenAI Chat Completions has no first-class system field; prepend one.
     if (ctx?.system) messages.unshift({ role: 'system', content: ctx.system })
     let finalText = ''

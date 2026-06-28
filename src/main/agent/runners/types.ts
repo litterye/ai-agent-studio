@@ -2,7 +2,7 @@ import type { AgentEvent, ChatMessage, AttachmentMeta } from '@shared/ipc'
 import type { AgentTool } from '../../tools/types'
 import { evaluatePolicy, type PolicyContext, type PolicyReason } from '../../tools/policy'
 import { readFileSync } from 'fs'
-import { basename, extname } from 'path'
+import { extname } from 'path'
 
 export interface AgentCallbacks {
   emit(event: AgentEvent): void

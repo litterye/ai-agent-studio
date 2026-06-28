@@ -2,7 +2,7 @@
 import { ref, onMounted, h, computed } from 'vue'
 import {
   NDataTable, NButton, NTag, NSpace, NModal, NScrollbar,
-  NEmpty, NSpin, NTabs, NTabPane, NCard, useMessage
+  NEmpty, NSpin, NTabs, NTabPane, useMessage
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 
