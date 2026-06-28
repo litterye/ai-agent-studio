@@ -13,6 +13,7 @@ import {
   NRadio,
   NDataTable,
   NPopconfirm,
+  NInput,
   useMessage
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
@@ -98,6 +99,40 @@ async function removeModel(id: string): Promise<void> {
   message.success('模型已删除')
 }
 
+// ─── SOUL.md (Agent Identity) ────────────────────────────────────────────
+
+const soulContent = ref('')
+const soulSaving = ref(false)
+const soulLoaded = ref(false)
+
+async function loadSoul(): Promise<void> {
+  const result = await window.api.soul.get()
+  if (result) {
+    soulContent.value = result.content
+  } else {
+    soulContent.value = await window.api.soul.getDefault()
+  }
+  soulLoaded.value = true
+}
+
+async function saveSoul(): Promise<void> {
+  soulSaving.value = true
+  try {
+    const res = await window.api.soul.set(soulContent.value)
+    if (res.ok) {
+      message.success('人格已保存。下次对话生效。')
+    } else {
+      message.error('保存失败')
+    }
+  } finally {
+    soulSaving.value = false
+  }
+}
+
+async function resetSoul(): Promise<void> {
+  soulContent.value = await window.api.soul.getDefault()
+}
+
 // ─── About ──────────────────────────────────────────────────────────────
 
 const appVersion = ref('')
@@ -111,6 +146,7 @@ async function checkUpdate(): Promise<void> {
 }onMounted(async () => {
   await settings.load()
   await loadModels()
+  await loadSoul()
   appVersion.value = await window.api.app.getVersion()
 })
 </script>
@@ -167,6 +203,37 @@ async function checkUpdate(): Promise<void> {
           <div v-if="models.length === 0" style="opacity:0.4; text-align:center; padding:40px">
             暂无已保存的模型，点击上方按钮添加
           </div>
+        </div>
+      </NTabPane>
+
+      <!-- Agent 人格 -->
+      <NTabPane name="personality" tab="人格">
+        <div class="tab-content">
+          <p style="margin-top:0; opacity:0.55; font-size:13px;">
+            编辑 SOUL.md 定义 Agent 的身份、语气和沟通风格。
+            此文件位于 <code>~\.ai-agent-studio\SOUL.md</code>，
+            每次对话时作为系统提示的顶层注入。
+          </p>
+          <NForm label-placement="left" label-width="0">
+            <NFormItem>
+              <NInput
+                v-model:value="soulContent"
+                type="textarea"
+                :autosize="{ minRows: 12, maxRows: 30 }"
+                placeholder="输入 Agent 身份定义…"
+              />
+            </NFormItem>
+            <NFormItem>
+              <NSpace>
+                <NButton type="primary" :loading="soulSaving" @click="saveSoul">
+                  保存
+                </NButton>
+                <NButton @click="resetSoul" :disabled="soulSaving">
+                  重置为默认
+                </NButton>
+              </NSpace>
+            </NFormItem>
+          </NForm>
         </div>
       </NTabPane>
 

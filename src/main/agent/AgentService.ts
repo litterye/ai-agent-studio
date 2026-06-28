@@ -7,6 +7,7 @@ import { OpenAIRunner } from './runners/OpenAIRunner'
 import { getApprovalsConfig } from '../approvals/config'
 import { getWorkspaceConfig } from '../config/workspaceConfig'
 import { buildSkillsIndex } from '../skills/promptBuilder'
+import { loadSoul } from '../identity/soul'
 
 export type { AgentCallbacks, RunContext } from './runners/types'
 
@@ -97,20 +98,22 @@ interface PromptParts {
 function buildSystemPrompt(parts: PromptParts): string {
   const blocks: string[] = []
 
-  blocks.push(
-    'You are an AI agent running inside a desktop application. You have access to a set of tools to read, write, and search files, run terminal commands, and load skills. Use them to fulfill the user request, and prefer calling tools over guessing.'
-  )
+  // ── Stable tier: SOUL.md identity (Hermes slot #1) ──────────────────
+  const soul = loadSoul()
+  if (soul) {
+    blocks.push(soul)
+  }
 
+  // ── Stable tier: environment & tools context ───────────────────────
   blocks.push(
     `Working directory: ${parts.cwd}\nAll relative file paths resolve against this directory. Use absolute paths when uncertain.`
   )
 
-  // Available toolsets for this session
   blocks.push(
     `Active toolsets: ${[...parts.activeToolsets].sort().join(', ')}.\nOnly tools whose toolset is in this list will be available to you this turn.`
   )
 
-  // Skills index (Hermes-style)
+  // ── Stable tier: skills index (Hermes-style) ────────────────────────
   const toolNames = new Set(parts.tools.map((t) => t.name))
   blocks.push(buildSkillsIndex(toolNames, parts.activeToolsets))
 

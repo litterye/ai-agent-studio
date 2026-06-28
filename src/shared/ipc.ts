@@ -326,5 +326,8 @@ export const IPC = {
   ShellOpenPath: 'shell:open-path',
   FileReadAsDataUrl: 'file:read-as-data-url',
   FileSaveClipboard: 'file:save-clipboard',
+  SoulGet: 'soul:get',
+  SoulSet: 'soul:set',
+  SoulGetDefault: 'soul:get-default',
   AppGetWorkspaceBase: 'app:get-workspace-base'
 } as const

@@ -53,6 +53,7 @@ import { sessionStore } from '../db/sessionStore'
 import { messageStore } from '../db/messageStore'
 import { modelStore } from '../db/modelStore'
 import { paths } from '../approvals/paths'
+import { loadSoul, saveSoul, getDefaultSoul } from '../identity/soul'
 
 interface PendingConfirm {
   resolve: (res: { approved: boolean; sessionAlways?: boolean }) => void
@@ -536,6 +537,25 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
       return null
     }
   })
+
+  // ─── SOUL.md (identity) ───────────────────────────────────────────────
+
+  ipcMain.handle(IPC.SoulGet, (): { content: string; path: string } | null => {
+    const content = loadSoul()
+    if (!content) return null
+    return { content, path: paths.soulMd }
+  })
+
+  ipcMain.handle(IPC.SoulSet, (_e, content: string): { ok: boolean } => {
+    try {
+      saveSoul(content)
+      return { ok: true }
+    } catch {
+      return { ok: false }
+    }
+  })
+
+  ipcMain.handle(IPC.SoulGetDefault, (): string => getDefaultSoul())
 
   ipcMain.handle(IPC.AppGetWorkspaceBase, (): string => {
     return join(paths.home, 'workspace')

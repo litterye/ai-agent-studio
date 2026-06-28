@@ -161,6 +161,11 @@ const api = {
     readAsDataUrl: (path: string): Promise<string | null> => ipcRenderer.invoke(IPC.FileReadAsDataUrl, path),
     saveClipboard: (dataUrl: string): Promise<import('@shared/ipc').AttachmentMeta | null> => ipcRenderer.invoke(IPC.FileSaveClipboard, dataUrl)
   },
+  soul: {
+    get: (): Promise<{ content: string; path: string } | null> => ipcRenderer.invoke(IPC.SoulGet),
+    set: (content: string): Promise<{ ok: boolean }> => ipcRenderer.invoke(IPC.SoulSet, content),
+    getDefault: (): Promise<string> => ipcRenderer.invoke(IPC.SoulGetDefault)
+  },
   models: {
     list: (): Promise<ModelConfigDTO[]> => ipcRenderer.invoke(IPC.ModelList),
     create: (input: { name: string; protocol: 'anthropic' | 'openai'; baseUrl?: string; modelId: string; apiKey?: string; visionMode?: string }): Promise<ModelConfigDTO> =>

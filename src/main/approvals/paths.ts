@@ -18,6 +18,7 @@ export const paths = {
   configDir: join(studioHome, 'config'),
   approvalsConfig: join(studioHome, 'config', 'approvals.yaml'),
   workspaceConfig: join(studioHome, 'config', 'workspace.json'),
+  soulMd: join(studioHome, 'SOUL.md'),
   skillsDir: join(studioHome, 'skills'),
   skillsSnapshot: join(studioHome, 'skills', '.skills_prompt_snapshot.json'),
   cronDir: join(studioHome, 'cron'),
