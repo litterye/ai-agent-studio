@@ -1,0 +1,61 @@
+{
+  "name": "ai-agent-studio",
+  "version": "0.1.0",
+  "description": "AI Agent desktop app (Electron + Vue3 + Vite)",
+  "main": "./out/main/index.js",
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "build:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.69.0",
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@modelcontextprotocol/sdk": "^1.21.0",
+    "cron-parser": "^5.6.1",
+    "gray-matter": "^4.0.3",
+    "openai": "^4.104.0",
+    "playwright": "^1.61.1",
+    "sql.js": "^1.14.1",
+    "tesseract.js": "^6.0.1",
+    "yaml": "^2.9.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/markdown-it": "^14.1.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0",
+    "naive-ui": "^2.41.0",
+    "pinia": "^2.3.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "vue-tsc": "^2.2.0"
+  },
+  "build": {
+    "win": {
+      "icon": "src/public/icon/ai.ico"
+    },
+    "extraResources": [
+      {
+        "from": "src/public/icon",
+        "to": "icon"
+      }
+    ]
+  }
+}
