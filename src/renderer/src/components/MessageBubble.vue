@@ -32,6 +32,8 @@ const otherAtts = computed(() => props.message.attachments.filter(a => !a.mimeTy
 // Load image data URLs lazily (Electron renderer can't use file:// protocol)
 const imageDataUrls = ref<Record<string, string>>({})
 
+const hovered = ref(false)
+
 onMounted(async () => {
   for (const a of imageAtts.value) {
     try {
@@ -47,14 +49,40 @@ function fmtSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function fmtTokens(n: number): string {
+  if (n < 1000) return `${n}`
+  return `${(n / 1000).toFixed(1)}k`
+}
+
 async function openFile(path: string): Promise<void> {
   await window.api.shell.openPath(path)
+}
+
+async function copyText(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(props.message.text)
+  } catch { /* clipboard API may not be available */ }
 }
 </script>
 
 <template>
-  <div class="bubble-row" :class="{ user: isUser }">
+  <div
+    class="bubble-row"
+    :class="{ user: isUser }"
+    @mouseenter="hovered = true"
+    @mouseleave="hovered = false"
+  >
     <div class="bubble" :class="{ user: isUser }">
+      <!-- Copy button: absolute, never affects bubble size -->
+      <button
+        v-if="message.text && hovered"
+        class="copy-btn"
+        title="复制"
+        @click="copyText"
+      >
+        📋
+      </button>
+
       <!-- Attachments (user messages only) -->
       <div v-if="isUser && message.attachments.length > 0" class="attachments">
         <div v-for="a in imageAtts" :key="a.path" class="att-thumb" title="点击打开" @click="openFile(a.path)">
@@ -87,6 +115,13 @@ async function openFile(path: string): Promise<void> {
       <div v-else-if="message.streaming && !message.toolCalls.length" class="dots">
         ●●●
       </div>
+
+      <!-- Token usage (assistant messages only) -->
+      <div v-if="!isUser && message.usage" class="usage-info">
+        <span v-if="message.usage.inputTokens > 0">输入 {{ fmtTokens(message.usage.inputTokens) }}</span>
+        <span v-if="message.usage.inputTokens > 0 && message.usage.outputTokens > 0"> · </span>
+        <span v-if="message.usage.outputTokens > 0">输出 {{ fmtTokens(message.usage.outputTokens) }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -106,10 +141,44 @@ async function openFile(path: string): Promise<void> {
   background: rgba(255, 255, 255, 0.06);
   line-height: 1.55;
   word-break: break-word;
+  position: relative;
 }
 .bubble.user {
   background: #2a6cf0;
   color: #fff;
+}
+.copy-btn {
+  position: absolute;
+  bottom: 0;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  color: inherit;
+  z-index: 1;
+}
+/* Assistant: button on the right outside edge (no layout shift — absolute + translateX) */
+.bubble:not(.user) .copy-btn {
+  left: 100%;
+  transform: translateX(4px);
+}
+/* User: button on the left outside edge */
+.bubble.user .copy-btn {
+  right: 100%;
+  transform: translateX(-4px);
+}
+.copy-btn:hover { opacity: 1; }
+.usage-info {
+  margin-top: 8px;
+  font-size: 11px;
+  opacity: 0.45;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 6px;
 }
 .thinking {
   font-size: 12px;

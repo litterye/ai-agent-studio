@@ -135,9 +135,9 @@ const api = {
   },
   messages: {
     load: (sessionId: string): Promise<MessageDTO[]> => ipcRenderer.invoke(IPC.MessagesLoad, sessionId),
-    append: (msg: { sessionId: string; role: 'user' | 'assistant'; content?: string; thinking?: string; toolCallsJson?: string; attachmentsJson?: string }): Promise<MessageDTO> =>
+    append: (msg: { sessionId: string; role: 'user' | 'assistant'; content?: string; thinking?: string; toolCallsJson?: string; attachmentsJson?: string; usageJson?: string }): Promise<MessageDTO> =>
       ipcRenderer.invoke(IPC.MessageAppend, msg),
-    update: (id: number, patch: { content?: string; thinking?: string; toolCallsJson?: string }): Promise<void> =>
+    update: (id: number, patch: { content?: string; thinking?: string; toolCallsJson?: string; attachmentsJson?: string; usageJson?: string }): Promise<void> =>
       ipcRenderer.invoke(IPC.MessageUpdate, { id, patch }),
     clear: (sessionId: string): Promise<void> => ipcRenderer.invoke(IPC.MessagesClear, sessionId)
   },

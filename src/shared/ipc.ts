@@ -73,6 +73,8 @@ export type AgentEvent =
   | { type: 'done'; runId: string; finalText: string }
   | { type: 'error'; runId: string; message: string }
   | { type: 'cancelled'; runId: string }
+  /** Per-turn token usage from the model response. Emitted after each API call completes. */
+  | { type: 'token_usage'; runId: string; inputTokens: number; outputTokens: number }
   /** Side-channel: the user picked "always this session" on a confirm dialog.
    *  Renderer should persist a tool override and re-fetch approvals config. */
   | { type: 'policy_decision'; runId: string; toolName: string; decision: 'session-always' }
@@ -127,6 +129,7 @@ export interface MessageDTO {
   thinking: string
   toolCallsJson: string
   attachmentsJson: string
+  usageJson: string
   createdAt: string
 }
 

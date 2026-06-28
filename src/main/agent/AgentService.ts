@@ -31,6 +31,11 @@ export class AgentService {
     overrides?: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string }
   ): Promise<void> {
     try {
+      // Resolve model & protocol early — the system prompt needs them
+      const settings = configStore.getSettings()
+      const protocol = overrides?.protocol ?? settings.protocol
+      const model = overrides?.model ?? settings.model
+
       // Resolve active toolsets for this session
       const approvals = getApprovalsConfig()
       const activeToolsets = new Set<string>(approvals.toolsets.default)
@@ -44,7 +49,9 @@ export class AgentService {
       const system = buildSystemPrompt({
         tools,
         activeToolsets,
-        cwd
+        cwd,
+        model,
+        protocol
       })
 
       const ctx: RunContext = {
@@ -63,9 +70,6 @@ export class AgentService {
       // the active cwd. Cleared after the run.
       process.env['AGENT_STUDIO_CWD'] = cwd
       try {
-        const settings = configStore.getSettings()
-        // Per-session overrides
-        const protocol = overrides?.protocol ?? settings.protocol
         const runner: AgentRunner =
           protocol === 'openai' ? this.openai : this.anthropic
         await runner.run(runId, history, tools, cb, ctx)
@@ -93,6 +97,8 @@ interface PromptParts {
   tools: { name: string; toolset: string }[]
   activeToolsets: Set<string>
   cwd: string
+  model: string
+  protocol: string
 }
 
 function buildSystemPrompt(parts: PromptParts): string {
@@ -103,6 +109,14 @@ function buildSystemPrompt(parts: PromptParts): string {
   if (soul) {
     blocks.push(soul)
   }
+
+  // ── Stable tier: model self-awareness ──────────────────────────────
+  const protocolLabel = parts.protocol === 'anthropic' ? 'Anthropic' : 'OpenAI'
+  blocks.push(
+    `You are currently running on model: **${parts.model}** (protocol: ${protocolLabel}). ` +
+    'You can mention this when asked "what model are you?" or "what LLM is this?". ' +
+    'Do not make up capabilities — only claim what this model actually supports.'
+  )
 
   // ── Stable tier: environment & tools context ───────────────────────
   blocks.push(

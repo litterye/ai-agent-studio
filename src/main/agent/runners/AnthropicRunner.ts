@@ -40,6 +40,8 @@ export class AnthropicRunner implements AgentRunner {
       content: m.attachments?.length ? toAnthropicContent(m, effectiveVision) : m.content
     }))
     let finalText = ''
+    let totalInputTokens = 0
+    let totalOutputTokens = 0
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (cb.isCancelled()) return cb.emit({ type: 'cancelled', runId })
@@ -54,6 +56,18 @@ export class AnthropicRunner implements AgentRunner {
 
       const message = await this.streamOnce(runId, settings, messages, sdkTools, cb, ctx)
       if (cb.isCancelled()) return cb.emit({ type: 'cancelled', runId })
+
+      // Emit per-turn token usage
+      if (message.usage) {
+        totalInputTokens += message.usage.input_tokens
+        totalOutputTokens += message.usage.output_tokens
+        cb.emit({
+          type: 'token_usage',
+          runId,
+          inputTokens: message.usage.input_tokens,
+          outputTokens: message.usage.output_tokens
+        })
+      }
 
       const turnText = message.content
         .filter((b): b is Anthropic.TextBlock => b.type === 'text')

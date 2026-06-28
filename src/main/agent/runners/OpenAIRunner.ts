@@ -69,9 +69,19 @@ export class OpenAIRunner implements AgentRunner {
       trimMessages(messages as Array<{ role: string; content: unknown }>)
 
       const model = ctx?.modelOverride ?? settings.model
-      const { text, toolCalls } = await this.streamOnce(runId, model, messages, sdkTools, cb)
+      const { text, toolCalls, usage } = await this.streamOnce(runId, model, messages, sdkTools, cb)
       if (cb.isCancelled()) return cb.emit({ type: 'cancelled', runId })
       if (text) finalText = text
+
+      // Emit per-turn token usage
+      if (usage) {
+        cb.emit({
+          type: 'token_usage',
+          runId,
+          inputTokens: usage.prompt_tokens,
+          outputTokens: usage.completion_tokens
+        })
+      }
 
       if (toolCalls.length === 0) {
         return cb.emit({ type: 'done', runId, finalText })
@@ -125,17 +135,19 @@ export class OpenAIRunner implements AgentRunner {
     messages: ChatCompletionMessageParam[],
     tools: ChatCompletionTool[],
     cb: AgentCallbacks
-  ): Promise<{ text: string; toolCalls: PartialToolCall[] }> {
+  ): Promise<{ text: string; toolCalls: PartialToolCall[]; usage: { prompt_tokens: number; completion_tokens: number } | null }> {
     const client = openaiClient.get()
     const stream = await client.chat.completions.create({
       model,
       max_tokens: MAX_TOKENS,
       messages,
       tools: tools.length ? tools : undefined,
-      stream: true
+      stream: true,
+      stream_options: { include_usage: true }
     })
 
     let text = ''
+    let usage: { prompt_tokens: number; completion_tokens: number } | null = null
     const byIndex = new Map<number, PartialToolCall>()
     const emittedToolUse = new Set<number>()
 
@@ -143,6 +155,13 @@ export class OpenAIRunner implements AgentRunner {
       if (cb.isCancelled()) {
         stream.controller.abort()
         break
+      }
+      // Capture usage from the final chunk (stream_options: include_usage)
+      if (chunk.usage) {
+        usage = {
+          prompt_tokens: chunk.usage.prompt_tokens,
+          completion_tokens: chunk.usage.completion_tokens
+        }
       }
       const delta = chunk.choices[0]?.delta
       if (!delta) continue
@@ -182,6 +201,6 @@ export class OpenAIRunner implements AgentRunner {
       })
       .filter((tc) => tc.name)
 
-    return { text, toolCalls }
+    return { text, toolCalls, usage }
   }
 }

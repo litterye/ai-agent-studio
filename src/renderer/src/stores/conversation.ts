@@ -12,6 +12,11 @@ export interface ToolCallView {
   result?: string
 }
 
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+}
+
 export interface DisplayMessage {
   id: number // DB id (0 for in-flight assistant before DB insert)
   role: 'user' | 'assistant'
@@ -20,6 +25,8 @@ export interface DisplayMessage {
   toolCalls: ToolCallView[]
   attachments: AttachmentMeta[]
   streaming: boolean
+  /** Tokens consumed by this assistant message (aggregated across all turns). */
+  usage?: TokenUsage
 }
 
 function uid(): string {
@@ -30,14 +37,21 @@ export const useConversationStore = defineStore('conversation', () => {
   const messages = ref<DisplayMessage[]>([])
   const running = ref(false)
   const currentRunId = ref<string | null>(null)
+  /** Total tokens consumed in the current session across all turns. */
+  const sessionTokens = ref(0)
   let unsubscribe: (() => void) | null = null
 
   /** Load persisted messages for the active session. */
   async function loadSession(sessionId: string): Promise<void> {
     messages.value = []
+    sessionTokens.value = 0
     try {
       const rows: MessageDTO[] = await window.api.messages.load(sessionId)
       messages.value = rows.map(toDisplay)
+      // Restore session total from saved messages
+      for (const m of messages.value) {
+        if (m.usage) sessionTokens.value += m.usage.inputTokens + m.usage.outputTokens
+      }
     } catch (err) {
       console.error('[convo] load failed:', err)
     }
@@ -107,13 +121,22 @@ export const useConversationStore = defineStore('conversation', () => {
         }
         break
       }
+      case 'token_usage':
+        if (!assistant.usage) {
+          assistant.usage = { inputTokens: 0, outputTokens: 0 }
+        }
+        assistant.usage.inputTokens += event.inputTokens
+        assistant.usage.outputTokens += event.outputTokens
+        sessionTokens.value += event.inputTokens + event.outputTokens
+        break
       case 'done':
         if (event.finalText && !assistant.text) assistant.text = event.finalText
         if (assistant.id > 0) {
           void window.api.messages.update(assistant.id, {
             content: assistant.text,
             thinking: assistant.thinking,
-            toolCallsJson: JSON.stringify(toolCallsToJson(assistant.toolCalls))
+            toolCallsJson: JSON.stringify(toolCallsToJson(assistant.toolCalls)),
+            usageJson: assistant.usage ? JSON.stringify(assistant.usage) : undefined
           }).catch(() => {})
         }
         finish()
@@ -218,7 +241,7 @@ export const useConversationStore = defineStore('conversation', () => {
     messages.value = []
   }
 
-  return { messages, running, send, cancel, clear, loadSession }
+  return { messages, running, sessionTokens, send, cancel, clear, loadSession }
 })
 
 // ─── helpers ────────────────────────────────────────────────────────────
@@ -236,6 +259,14 @@ function toDisplay(m: MessageDTO): DisplayMessage {
     attachments = Array.isArray(parsed) ? parsed : []
   } catch { /* ignore */ }
 
+  let usage: TokenUsage | undefined
+  try {
+    const parsed = JSON.parse(m.usageJson || '{}')
+    if (parsed.inputTokens > 0 || parsed.outputTokens > 0) {
+      usage = parsed as TokenUsage
+    }
+  } catch { /* ignore */ }
+
   return {
     id: m.id,
     role: m.role,
@@ -243,6 +274,7 @@ function toDisplay(m: MessageDTO): DisplayMessage {
     thinking: m.thinking,
     toolCalls,
     attachments,
+    usage,
     streaming: false
   }
 }

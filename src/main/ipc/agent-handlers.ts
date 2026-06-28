@@ -390,18 +390,19 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
       thinking: m.thinking,
       toolCallsJson: m.tool_calls_json,
       attachmentsJson: m.attachments_json,
+      usageJson: m.usage_json,
       createdAt: m.created_at
     }))
   })
 
   ipcMain.handle(IPC.MessageAppend, (_e, msg: {
-    sessionId: string; role: 'user' | 'assistant'; content?: string; thinking?: string; toolCallsJson?: string; attachmentsJson?: string
+    sessionId: string; role: 'user' | 'assistant'; content?: string; thinking?: string; toolCallsJson?: string; attachmentsJson?: string; usageJson?: string
   }): MessageDTO => {
     const m = messageStore.append(msg)
-    return { id: m.id, sessionId: m.session_id, role: m.role, content: m.content, thinking: m.thinking, toolCallsJson: m.tool_calls_json, attachmentsJson: m.attachments_json, createdAt: m.created_at }
+    return { id: m.id, sessionId: m.session_id, role: m.role, content: m.content, thinking: m.thinking, toolCallsJson: m.tool_calls_json, attachmentsJson: m.attachments_json, usageJson: m.usage_json, createdAt: m.created_at }
   })
 
-  ipcMain.handle(IPC.MessageUpdate, (_e, args: { id: number; patch: { content?: string; thinking?: string; toolCallsJson?: string; attachmentsJson?: string } }) => {
+  ipcMain.handle(IPC.MessageUpdate, (_e, args: { id: number; patch: { content?: string; thinking?: string; toolCallsJson?: string; attachmentsJson?: string; usageJson?: string } }) => {
     messageStore.update(args.id, args.patch)
   })
 

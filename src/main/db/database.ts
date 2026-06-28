@@ -137,6 +137,7 @@ function runMigrations(): void {
       thinking TEXT DEFAULT '',
       tool_calls_json TEXT NOT NULL DEFAULT '[]',
       attachments_json TEXT NOT NULL DEFAULT '[]',
+      usage_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL
     )
   `)
@@ -157,5 +158,6 @@ function runMigrations(): void {
   // Post-hoc migrations: add columns that may not exist in older DBs.
   // sql.js throws on duplicate column — catch and ignore.
   try { d.run(`ALTER TABLE messages ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]'`) } catch { /* column already exists */ }
+  try { d.run(`ALTER TABLE messages ADD COLUMN usage_json TEXT NOT NULL DEFAULT '{}'`) } catch { /* column already exists */ }
   try { d.run(`ALTER TABLE models ADD COLUMN vision_mode TEXT NOT NULL DEFAULT 'text'`) } catch { /* column already exists */ }
 }

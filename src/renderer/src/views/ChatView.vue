@@ -420,6 +420,9 @@ onUnmounted(() => unsubConfirm?.())
         <NButton size="tiny" class="att-btn" @click="pickFiles" title="添加附件（最多9个，单个≤200MB）">
           📎 {{ attachments.length > 0 ? `(${attachments.length}/${MAX_ATTACHMENTS})` : '' }}
         </NButton>
+        <span v-if="convo.sessionTokens > 0" class="session-tokens" title="当前会话累计消耗 tokens">
+          累计 {{ (convo.sessionTokens / 1000).toFixed(1) }}k tokens
+        </span>
         <div v-if="attachments.length > 0" class="att-chips">
           <div v-for="(a, i) in attachments" :key="a.path" class="att-chip">
             <span class="att-chip-icon">{{ a.mimeType.startsWith('image/') ? '🖼' : '📄' }}</span>
@@ -563,6 +566,14 @@ onUnmounted(() => unsubConfirm?.())
 }
 .att-btn {
   flex-shrink: 0;
+}
+.session-tokens {
+  font-size: 11px;
+  opacity: 0.4;
+  padding: 2px 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
 }
 .att-chips {
   display: flex;
