@@ -280,6 +280,25 @@ body,
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* ── Unified scrollbar (Chromium-native, no deps) ──────────────────────── */
+::-webkit-scrollbar {
+  width:  6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.25);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.50);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
 .brand {
   font-weight: 700;
   font-size: 15px;
