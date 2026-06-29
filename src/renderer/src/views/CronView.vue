@@ -2,7 +2,8 @@
 import { ref, onMounted, h } from 'vue'
 import {
   NDataTable, NButton, NTag, NSpace, NModal, NForm, NFormItem,
-  NInput, NSwitch, NText, NEmpty, useMessage, NPopconfirm
+  NInput, NSwitch, NText, NEmpty,
+  useMessage, NPopconfirm
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import type { CronJobDTO, CronStatusDTO } from '@shared/ipc'

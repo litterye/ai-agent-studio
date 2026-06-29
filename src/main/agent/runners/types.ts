@@ -40,6 +40,8 @@ export interface RunContext {
   baseUrlOverride?: string
   /** Per-session vision mode override. 'auto' | 'native' | 'text'. Falls back to 'text'. */
   visionModeOverride?: string
+  /** Per-session API key override (resolved from ModelStore). Falls back to global config. */
+  apiKeyOverride?: string
   /** DB session ID — used for memory extraction tracing. */
   sessionId?: string
 }

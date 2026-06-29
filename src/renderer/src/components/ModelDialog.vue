@@ -54,6 +54,9 @@ async function save(): Promise<void> {
     errorMsg.value = '请输入模型 ID'
     return
   }
+  // Trim whitespace from apiKey to avoid accidental leading/trailing spaces
+  const trimmedApiKey = form.value.apiKey.trim()
+  const trimmedBaseUrl = form.value.baseUrl.trim()
   saving.value = true
   errorMsg.value = ''
   try {
@@ -61,9 +64,9 @@ async function save(): Promise<void> {
       await window.api.models.update(props.modelId, {
         name: form.value.name,
         protocol: form.value.protocol,
-        baseUrl: form.value.baseUrl,
+        baseUrl: trimmedBaseUrl,
         modelId: form.value.modelId,
-        apiKey: form.value.apiKey,
+        apiKey: trimmedApiKey,
         visionMode: form.value.visionMode
       })
       emit('saved', props.modelId)
@@ -71,9 +74,9 @@ async function save(): Promise<void> {
       const created = await window.api.models.create({
         name: form.value.name,
         protocol: form.value.protocol,
-        baseUrl: form.value.baseUrl,
+        baseUrl: trimmedBaseUrl,
         modelId: form.value.modelId,
-        apiKey: form.value.apiKey,
+        apiKey: trimmedApiKey,
         visionMode: form.value.visionMode
       })
       emit('saved', created.id)

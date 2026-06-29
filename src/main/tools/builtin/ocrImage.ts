@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { statSync } from 'fs'
 import type { AgentTool, BuiltinToolDef } from '../types'
 
 const schema = z.object({
@@ -65,13 +66,15 @@ const def: BuiltinToolDef<Input> = {
   async handler(input) {
     const lang = input.language?.trim() || 'eng'
 
-    // Reject images over the size limit (avoid OOM)
-    const { stat } = await import('fs/promises')
-    const fileStat = await stat(input.path)
-    if (fileStat.size > MAX_IMAGE_BYTES) {
-      throw new Error(
-        `Image too large: ${(fileStat.size / 1024 / 1024).toFixed(1)} MB (max 20 MB)`
-      )
+    // Check file size before loading into memory
+    try {
+      const stats = statSync(input.path)
+      if (stats.size > MAX_IMAGE_BYTES) {
+        throw new Error(`Image file too large: ${(stats.size / (1024 * 1024)).toFixed(1)} MB (max ${MAX_IMAGE_BYTES / (1024 * 1024)} MB)`)
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('too large')) throw e
+      throw new Error(`Cannot access image file: ${input.path}`)
     }
 
     // Dynamically import tesseract.js — keeps the main bundle lean

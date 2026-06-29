@@ -32,7 +32,7 @@ export class AgentService {
     cb: AgentCallbacks,
     sessionKey?: string | null,
     sessionId?: string | null,
-    overrides?: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string }
+    overrides?: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string; apiKey?: string }
   ): Promise<void> {
     try {
       // Resolve model & protocol early — the system prompt needs them
@@ -72,6 +72,7 @@ export class AgentService {
         effortOverride: overrides?.effort,
         baseUrlOverride: overrides?.baseUrl,
         visionModeOverride: overrides?.visionMode,
+        apiKeyOverride: overrides?.apiKey,
         sessionId: sessionId ?? undefined
       }
 

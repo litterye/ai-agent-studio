@@ -36,10 +36,13 @@ export class AnthropicRunner implements AgentRunner {
     }))
     const effectiveModel = ctx?.modelOverride ?? settings.model
     const effectiveVision = resolveVisionMode(effectiveModel, ctx?.visionModeOverride ?? 'text')
-    const messages: MessageParam[] = history.map((m) => ({
-      role: m.role,
-      content: (m.attachments?.length ? toAnthropicContent(m, effectiveVision) : m.content) as MessageParam['content']
-    }))
+    const messages: MessageParam[] = history.map((m) => {
+      const content = m.attachments?.length ? toAnthropicContent(m, effectiveVision) : m.content
+      return {
+        role: m.role as 'user' | 'assistant',
+        content: content as string | Anthropic.ContentBlockParam[]
+      }
+    })
     let finalText = ''
     let totalInputTokens = 0
     let totalOutputTokens = 0
@@ -83,7 +86,7 @@ export class AnthropicRunner implements AgentRunner {
       if (message.stop_reason !== 'tool_use') {
         // Fire-and-forget memory extraction (don't block the done event)
         if (ctx?.sessionId) {
-          memoryService.extractAndStore(history, effectiveModel, 'anthropic', ctx.sessionId)
+          memoryService.extractAndStore(history, effectiveModel, 'anthropic', ctx.sessionId, ctx?.apiKeyOverride, ctx?.baseUrlOverride)
         }
         return cb.emit({ type: 'done', runId, finalText })
       }
@@ -138,7 +141,10 @@ export class AnthropicRunner implements AgentRunner {
     cb: AgentCallbacks,
     ctx?: RunContext
   ): Promise<Anthropic.Message> {
-    const client = anthropicClient.get()
+    const client = anthropicClient.get({
+      apiKey: ctx?.apiKeyOverride,
+      baseURL: ctx?.baseUrlOverride
+    })
     const model = ctx?.modelOverride ?? settings.model
     const effort = ctx?.effortOverride ?? settings.effort
     const params = {

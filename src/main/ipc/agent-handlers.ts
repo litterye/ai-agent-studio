@@ -73,22 +73,30 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
   ipcMain.on(IPC.AgentSend, (_e, req: AgentSendRequest) => {
     cancelledRuns.delete(req.runId)
     // Look up session overrides from DB
-    let overrides: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string } | undefined
+    let overrides: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string; apiKey?: string } | undefined
     if (req.sessionId) {
       const session = sessionStore.getById(req.sessionId)
       if (session) {
+        // Resolve per-model API key, baseUrl, and protocol from ModelStore
+        // Model config takes priority over session defaults to ensure key/URL/protocol alignment
+        const modelRow = modelStore.getByModelId(session.model)
+        const apiKey = modelRow ? modelStore.resolveApiKey(modelRow.id) : undefined
+        // protocol: model config > session (ensures key matches the endpoint)
+        const protocol = modelRow?.protocol || session.protocol
+        // baseUrl: session override > model config > empty (SDK default)
+        const baseUrl = session.base_url || modelRow?.base_url || undefined
         overrides = {
           model: session.model,
-          protocol: session.protocol,
+          protocol,
           effort: session.effort,
-          baseUrl: session.base_url || undefined
+          baseUrl,
+          apiKey: apiKey || undefined
         }
         // Resolve vision mode: request override > model config > default 'text'
         if (req.visionMode) {
           overrides.visionMode = req.visionMode
         } else {
-          const model = modelStore.getByModelId(session.model)
-          overrides.visionMode = model?.vision_mode || 'text'
+          overrides.visionMode = modelRow?.vision_mode || 'text'
         }
       }
     }
