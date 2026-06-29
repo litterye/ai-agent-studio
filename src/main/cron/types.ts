@@ -35,8 +35,13 @@ export const CronJobSchema = z.object({
   schedule: CronScheduleSchema,
   /** Toolsets enabled for this job (defaults to platform default if empty). */
   enabledToolsets: z.array(z.string()).optional(),
-  /** Working directory for the job. Defaults to user's home dir. */
+  /** Working directory for the job. Defaults to the agent's workspace dir. */
   workdir: z.string().optional(),
+  /** Agent ID this job is associated with. Defaults to the first agent. */
+  agentId: z.string().optional(),
+  /** Target session ID for message delivery. If set, the cron prompt is
+   *  appended to this session. If unset, a new session is created per run. */
+  sessionId: z.string().optional(),
   /** Last time this job ran (ISO timestamp, UTC). */
   lastRunAt: z.string().nullable().default(null),
   /** Last run result summary. */

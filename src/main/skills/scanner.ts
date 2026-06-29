@@ -75,8 +75,8 @@ function tryParse(abs: string, parents: string[]): SkillRecord | null {
     if (!skillMatchesPlatform(parsed.frontmatter)) return null
     const stat = statSync(abs)
     const mtimeNs = BigInt(Math.floor(stat.mtimeMs)) * 1_000_000n
-    const category = parents[0] ?? 'uncategorized'
-    const relativePath = [...parents, parsed.frontmatter.name].join(sep)
+    const category = parents[0] ?? 'general'
+    const relativePath = parents.length > 0 ? parents.join(sep) : parsed.frontmatter.name
     return {
       name: parsed.frontmatter.name,
       category,

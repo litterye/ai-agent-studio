@@ -71,6 +71,8 @@ export const jobStore = {
     scheduleInput: string
     enabledToolsets?: string[]
     workdir?: string
+    agentId?: string
+    sessionId?: string
   }): CronJob | string {
     if (!isValidJobId(raw.id)) return `Invalid job id "${raw.id}".`
     const all = load()
@@ -87,6 +89,8 @@ export const jobStore = {
       schedule: parsed.schedule,
       enabledToolsets: raw.enabledToolsets,
       workdir: raw.workdir,
+      agentId: raw.agentId,
+      sessionId: raw.sessionId,
       lastRunAt: null,
       lastResult: null,
       nextRunAt: parsed.nextRunAt,
@@ -108,6 +112,8 @@ export const jobStore = {
       scheduleInput?: string
       enabledToolsets?: string[]
       workdir?: string
+      agentId?: string
+      sessionId?: string
       paused?: boolean
     }
   ): CronJob | string {
@@ -121,6 +127,8 @@ export const jobStore = {
     if (patch.prompt !== undefined) next.prompt = patch.prompt
     if (patch.enabledToolsets !== undefined) next.enabledToolsets = patch.enabledToolsets
     if (patch.workdir !== undefined) next.workdir = patch.workdir
+    if (patch.agentId !== undefined) next.agentId = patch.agentId
+    if (patch.sessionId !== undefined) next.sessionId = patch.sessionId
     if (patch.paused !== undefined) next.paused = patch.paused
 
     if (patch.scheduleInput) {

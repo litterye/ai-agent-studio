@@ -4,11 +4,15 @@ import { randomUUID } from 'crypto'
 import { paths, ensureDir } from '../approvals/paths'
 import { jobStore } from './store'
 import { agentService } from '../agent/AgentService'
-import type { AgentEvent } from '@shared/ipc'
+import { agentStore } from '../db/agentStore'
+import { sessionStore } from '../db/sessionStore'
+import { messageStore } from '../db/messageStore'
+import type { AgentEvent, ChatMessage } from '@shared/ipc'
 
 /**
  * Run a cron job via `AgentService.run()` with callbacks that write results
- * to disk and emit CRON_EVENT to the renderer (if a window is open).
+ * to disk. If the job has a target session, messages are appended there;
+ * otherwise a new session is created under the job's agent.
  */
 
 export interface CronRunResult {
@@ -23,14 +27,77 @@ export async function runJob(jobId: string): Promise<CronRunResult> {
     return { output: '', error: `Job "${jobId}" not found.`, consecutiveFailures: 0 }
   }
 
+  // Resolve agent — use the job's agent, or the default agent
+  const agent = (job.agentId && agentStore.getById(job.agentId)) || agentStore.getDefault()
+
+  // Resolve workdir: job workdir > agent workspace dir
+  const workdir = job.workdir || agent.workspace_dir
+
+  // Resolve session — use the target session if it still exists, or create a new one
+  let sessionId: string
+  let sessionKey: string
+  let history: ChatMessage[]
+  let model: string
+  let protocol: string
+
+  const targetSession = job.sessionId ? sessionStore.getById(job.sessionId) : null
+
+  if (targetSession) {
+    // Existing session — load history + use its model/protocol
+    sessionId = targetSession.id
+    sessionKey = targetSession.id
+    model = targetSession.model
+    protocol = targetSession.protocol
+    // Load recent messages as conversation context (last 20, which is plenty)
+    const msgs = messageStore.listBySession(sessionId).slice(-20)
+    history = msgs.map((m) => ({
+      role: m.role,
+      content: m.content
+    }))
+    // Append the cron prompt as a new user message to DB
+    messageStore.append({
+      sessionId,
+      role: 'user',
+      content: job.prompt
+    })
+    // Bump session updated_at so it moves to the top
+    sessionStore.update(sessionId, {})
+  } else {
+    // No target session — create a new one per run
+    const sess = sessionStore.create({
+      agentId: agent.id,
+      title: `[定时] ${job.name} — ${new Date().toLocaleDateString()}`,
+      model: agent.default_model,
+      protocol: agent.default_protocol
+    })
+    sessionId = sess.id
+    sessionKey = sess.id
+    model = sess.model
+    protocol = sess.protocol
+    // Persist the cron prompt as the first user message
+    messageStore.append({
+      sessionId,
+      role: 'user',
+      content: job.prompt
+    })
+    history = []
+  }
+
+  // Push the current prompt onto history for the agent run
+  history.push({ role: 'user', content: job.prompt })
+
   const runId = `cron__${jobId}__${randomUUID()}`
   let output = ''
   let error: string | undefined
 
+  // Pin the workdir so tools resolve relative paths correctly.
+  const prevCwd = process.env['AGENT_STUDIO_CWD']
+  process.env['AGENT_STUDIO_CWD'] = workdir
+
   try {
     await agentService.run(
       runId,
-      [{ role: 'user', content: job.prompt }],
+      history,
       {
         emit: (e: AgentEvent) => {
           if (e.type === 'text_delta') {
@@ -45,16 +112,37 @@ export async function runJob(jobId: string): Promise<CronRunResult> {
           }
         },
         isCancelled: () => false,
-        confirm: async () => ({ approved: false })
+        // Cron jobs run headless — auto-approve all tool confirmations.
+        confirm: async () => ({ approved: true })
       },
-      null // no session key
+      sessionKey,
+      sessionId,
+      { model, protocol }
     )
+
+    // Persist assistant response to the session
+    if (output) {
+      messageStore.append({
+        sessionId,
+        role: 'assistant',
+        content: output.slice(0, 100_000)
+      })
+      // Bump session updated_at so it appears at the top of the list
+      sessionStore.update(sessionId, {})
+    }
 
     writeOutput(jobId, output)
   } catch (err) {
     error = err instanceof Error ? err.message : String(err)
     output += `\n\n[Error] ${error}`
     writeOutput(jobId, output)
+  } finally {
+    // Restore previous cwd
+    if (prevCwd !== undefined) {
+      process.env['AGENT_STUDIO_CWD'] = prevCwd
+    } else {
+      delete process.env['AGENT_STUDIO_CWD']
+    }
   }
 
   // Suppress delivery for [SILENT] / SILENT / NO_REPLY prefix (Hermes parity).

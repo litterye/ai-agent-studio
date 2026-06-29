@@ -1,7 +1,7 @@
 import { ipcMain, app, dialog, shell, type WebContents } from 'electron'
 import { randomUUID } from 'crypto'
 import { join, extname, basename } from 'path'
-import { statSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
+import { statSync, readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { IPC } from '@shared/ipc'
 import type {
   AgentDTO,
@@ -205,26 +205,35 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
 
   // ─── Cron ────────────────────────────────────────────────────────────
 
-  ipcMain.handle(IPC.CronList, (): CronJobDTO[] => jobStore.list())
+  ipcMain.handle(IPC.CronList, (): CronJobDTO[] => jobStore.list().map(enrichJob))
 
-  ipcMain.handle(IPC.CronGet, (_e, id: string): CronJobDTO | undefined =>
-    jobStore.get(id)
-  )
+  ipcMain.handle(IPC.CronGet, (_e, id: string): CronJobDTO | undefined => {
+    const j = jobStore.get(id)
+    return j ? enrichJob(j) : undefined
+  })
 
   ipcMain.handle(
     IPC.CronCreate,
     (_e, raw: {
       id: string; name: string; prompt: string
       scheduleInput: string; enabledToolsets?: string[]; workdir?: string
-    }): CronJobDTO | string => jobStore.create(raw)
+      agentId?: string; sessionId?: string
+    }): CronJobDTO | string => {
+      const result = jobStore.create(raw)
+      return typeof result === 'string' ? result : enrichJob(result)
+    }
   )
 
   ipcMain.handle(
     IPC.CronUpdate,
     (_e, args: { id: string; patch: {
       name?: string; prompt?: string; scheduleInput?: string
-      enabledToolsets?: string[]; workdir?: string; paused?: boolean
-    } }): CronJobDTO | string => jobStore.update(args.id, args.patch)
+      enabledToolsets?: string[]; workdir?: string
+      agentId?: string; sessionId?: string; paused?: boolean
+    } }): CronJobDTO | string => {
+      const result = jobStore.update(args.id, args.patch)
+      return typeof result === 'string' ? result : enrichJob(result)
+    }
   )
 
   ipcMain.handle(IPC.CronDelete, (_e, id: string): boolean => jobStore.remove(id))
@@ -232,6 +241,33 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
   ipcMain.handle(IPC.CronRunNow, async (_e, id: string) => {
     const result = await runJob(id)
     return result
+  })
+
+  ipcMain.handle(IPC.CronRunHistory, async (_e, jobId: string) => {
+    const dir = join(paths.cronOutputDir, jobId)
+    if (!existsSync(dir)) return []
+    try {
+      const files = readdirSync(dir).filter((f) => f.endsWith('.md')).sort().reverse()
+      return files.slice(0, 50).map((f) => {
+        const abs = join(dir, f)
+        try {
+          const raw = readFileSync(abs, 'utf8')
+          // Extract timestamp from filename: YYYYMMDDTHHmmss.md
+          const tsMatch = f.match(/^(\d{8}T\d{6})/)
+          const timestamp = tsMatch
+            ? `${tsMatch[1].slice(0,4)}-${tsMatch[1].slice(4,6)}-${tsMatch[1].slice(6,8)}T${tsMatch[1].slice(9,11)}:${tsMatch[1].slice(11,13)}:${tsMatch[1].slice(13,15)}`
+            : ''
+          const hasError = raw.includes('[Error]')
+          // First line is "# jobId — timestamp", skip it for display
+          const content = raw.replace(/^#.*\n/, '').trim()
+          return { fileName: f, timestamp, content, success: !hasError }
+        } catch {
+          return { fileName: f, timestamp: '', content: '(unreadable)', success: false }
+        }
+      })
+    } catch {
+      return []
+    }
   })
 
   ipcMain.handle(IPC.CronStatus, (): CronStatusDTO => {
@@ -601,6 +637,16 @@ function mimeFromExt(ext: string): string {
     '.sh': 'text/x-shellscript', '.bat': 'text/plain',
   }
   return map[ext] ?? 'application/octet-stream'
+}
+
+/** Resolve session title for display in the cron job list. */
+function enrichJob(job: import('../cron/types').CronJob): CronJobDTO {
+  let sessionTitle: string | undefined
+  if (job.sessionId) {
+    const s = sessionStore.getById(job.sessionId)
+    sessionTitle = s?.title
+  }
+  return { ...job, sessionTitle }
 }
 
 function resolveCurrentCwd(): string {

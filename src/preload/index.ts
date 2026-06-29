@@ -83,16 +83,20 @@ const api = {
     create: (raw: {
       id: string; name: string; prompt: string
       scheduleInput: string; enabledToolsets?: string[]; workdir?: string
+      agentId?: string; sessionId?: string
     }): Promise<CronJobDTO | string> => ipcRenderer.invoke(IPC.CronCreate, raw),
     update: (args: {
       id: string; patch: {
         name?: string; prompt?: string; scheduleInput?: string
-        enabledToolsets?: string[]; workdir?: string; paused?: boolean
+        enabledToolsets?: string[]; workdir?: string
+        agentId?: string; sessionId?: string; paused?: boolean
       }
     }): Promise<CronJobDTO | string> => ipcRenderer.invoke(IPC.CronUpdate, args),
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke(IPC.CronDelete, id),
     runNow: (id: string): Promise<{ output: string; error?: string; consecutiveFailures: number }> =>
       ipcRenderer.invoke(IPC.CronRunNow, id),
+    runHistory: (jobId: string): Promise<Array<{ timestamp: string; content: string; success: boolean; fileName: string }>> =>
+      ipcRenderer.invoke(IPC.CronRunHistory, jobId),
     status: (): Promise<CronStatusDTO> => ipcRenderer.invoke(IPC.CronStatus)
   },
   skills: {

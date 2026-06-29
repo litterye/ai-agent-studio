@@ -209,6 +209,12 @@ export interface CronJobDTO {
   schedule: { kind: 'cron' | 'interval' | 'once'; expr?: string; minutes?: number; runAt?: string }
   enabledToolsets?: string[]
   workdir?: string
+  /** Agent ID this job is associated with. */
+  agentId?: string
+  /** Target session ID. If set, messages are appended to this existing session. */
+  sessionId?: string
+  /** Resolved display title for the target session (set by IPC handler). */
+  sessionTitle?: string
   lastRunAt: string | null
   lastResult: string | null
   nextRunAt: string | null
@@ -305,6 +311,7 @@ export const IPC = {
   CronUpdate: 'cron:update',
   CronDelete: 'cron:delete',
   CronRunNow: 'cron:run-now',
+  CronRunHistory: 'cron:run-history',
   CronStatus: 'cron:status',
   CronEvent: 'cron:event',
   SkillsList: 'skills:list',

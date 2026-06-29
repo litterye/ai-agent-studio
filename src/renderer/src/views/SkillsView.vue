@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, h, computed } from 'vue'
+import { ref, onMounted, h } from 'vue'
 import {
   NDataTable, NButton, NTag, NSpace, NModal, NScrollbar,
   NEmpty, NSpin, NTabs, NTabPane, useMessage
@@ -13,16 +13,6 @@ const pending = ref<Array<{ id: string; draft: { name: string; description: stri
 const viewingPath = ref<string | null>(null)
 const viewingBody = ref<string | null>(null)
 const previewing = ref(false)
-
-const categories = computed(() => {
-  const cats = new Map<string, typeof skills.value>()
-  for (const s of skills.value) {
-    const c = s.category
-    if (!cats.has(c)) cats.set(c, [])
-    cats.get(c)!.push(s)
-  }
-  return [...cats.entries()]
-})
 
 async function loadSkills(): Promise<void> {
   loading.value = true
@@ -116,22 +106,15 @@ onMounted(loadSkills)
     <NTabs type="line" animated>
       <NTabPane name="installed" tab="已安装">
         <NSpin :show="loading">
-          <div v-if="categories.length === 0 && !loading" style="padding: 20px; text-align:center; opacity: 0.5">
-            暂无技能。在 ~/.ai-agent-studio/skills/ 下创建 SKILL.md 或在对话中点击「保存为技能」。
-          </div>
-          <div v-for="[cat, catSkills] in categories" :key="cat" style="margin-bottom: 16px">
-            <NText depth="3" style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px">
-              {{ cat }}
-            </NText>
-            <NSpin :show="loading">
-              <NDataTable
-                :columns="skillColumns"
-                :data="catSkills"
-                :bordered="false"
-                size="small"
-              />
-            </NSpin>
-          </div>
+          <NEmpty v-if="skills.length === 0 && !loading" description="暂无技能。在 ~/.ai-agent-studio/skills/ 下创建 SKILL.md 或在对话中点击「保存为技能」。" />
+          <NDataTable
+            v-else
+            :columns="skillColumns"
+            :data="skills"
+            :bordered="false"
+            size="small"
+            :row-key="(row) => row.relativePath"
+          />
         </NSpin>
       </NTabPane>
       <NTabPane name="pending" tab="待审核">
