@@ -55,6 +55,10 @@
       {
         "from": "src/public/icon",
         "to": "icon"
+      },
+      {
+        "from": "resources/traineddata",
+        "to": "traineddata"
       }
     ]
   }

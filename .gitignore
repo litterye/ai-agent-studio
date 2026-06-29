@@ -22,9 +22,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Large data files
-*.traineddata
-
 # TypeScript build info
 *.tsbuildinfo
 

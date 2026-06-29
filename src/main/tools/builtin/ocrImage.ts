@@ -1,6 +1,18 @@
 import { z } from 'zod'
 import { statSync } from 'fs'
+import { join } from 'path'
+import { app } from 'electron'
 import type { AgentTool, BuiltinToolDef } from '../types'
+
+/** Resolve local traineddata directory for Tesseract.js langPath. */
+function resolveTraineddataPath(): string {
+  // Production: extraResources place files in process.resourcesPath/<to>
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'traineddata')
+  }
+  // Development: relative to project root
+  return join(app.getAppPath(), 'resources', 'traineddata')
+}
 
 const schema = z.object({
   path: z.string().describe('Absolute path to the image file to OCR.'),
@@ -26,9 +38,7 @@ const OCR_TIMEOUT_MS = 30_000
  * Tesseract.js OCR tool.
  *
  * Uses a pure-WASM Tesseract engine — no native deps, no install step.
- * The ~8 MB language data files are downloaded on first use and cached
- * locally. Language data is fetched from jsdelivr CDN, so the first call
- * for each language requires internet access.
+ * Language data files (~5 MB each) are bundled with the app.
  */
 const def: BuiltinToolDef<Input> = {
   name: 'ocr_image',
@@ -36,8 +46,7 @@ const def: BuiltinToolDef<Input> = {
     'Extract text from an image file using OCR (optical character recognition). ' +
     'Use this when the user attaches an image and you need to read text from it, ' +
     'or when you encounter an image file in the workspace whose text contents you need. ' +
-    'Supports 100+ languages via Tesseract. ' +
-    'The first call for a given language downloads ~8 MB of language data (cached thereafter). ' +
+    'Supports English (eng) and Simplified Chinese (chi_sim) out of the box. ' +
     'Images larger than 20 MB are rejected. ' +
     'Note: OCR works best on clear, high-contrast text in standard fonts. ' +
     'Handwriting, stylized fonts, and low-resolution images will produce imperfect results.',
@@ -81,6 +90,8 @@ const def: BuiltinToolDef<Input> = {
     const { createWorker } = await import('tesseract.js')
 
     const worker = await createWorker(lang, 1, {
+      // Use bundled traineddata — no CDN download needed
+      langPath: resolveTraineddataPath(),
       // Suppress verbose tesseract logging
       logger: () => {}
     })
