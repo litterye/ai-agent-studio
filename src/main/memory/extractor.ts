@@ -41,7 +41,9 @@ Return JSON array only (no markdown fences, no explanations):`
 export async function extractMemories(
   history: ChatMessage[],
   model: string,
-  protocol: string
+  protocol: string,
+  apiKey?: string,
+  baseURL?: string
 ): Promise<MemoryCandidate[]> {
   try {
     // Grab the last user message and assistant response
@@ -60,8 +62,8 @@ export async function extractMemories(
       .replace('{assistant}', lastAssistant.slice(0, 6000))
 
     const raw = protocol === 'openai'
-      ? await askOpenAI(model, prompt)
-      : await askAnthropic(model, prompt)
+      ? await askOpenAI(model, prompt, apiKey, baseURL)
+      : await askAnthropic(model, prompt, apiKey, baseURL)
 
     if (!raw) return []
 
@@ -107,9 +109,9 @@ export async function extractMemories(
   }
 }
 
-async function askAnthropic(model: string, content: string): Promise<string | null> {
+async function askAnthropic(model: string, content: string, apiKey?: string, baseURL?: string): Promise<string | null> {
   try {
-    const client = anthropicClient.get()
+    const client = anthropicClient.get({ apiKey, baseURL })
     const res = await client.messages.create({
       model,
       max_tokens: 2000,
@@ -124,9 +126,9 @@ async function askAnthropic(model: string, content: string): Promise<string | nu
   }
 }
 
-async function askOpenAI(model: string, content: string): Promise<string | null> {
+async function askOpenAI(model: string, content: string, apiKey?: string, baseURL?: string): Promise<string | null> {
   try {
-    const client = openaiClient.get()
+    const client = openaiClient.get({ apiKey, baseURL })
     const res = await client.chat.completions.create({
       model,
       max_tokens: 2000,

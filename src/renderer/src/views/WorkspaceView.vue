@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import {
   NInput,
   NButton,
@@ -8,8 +8,6 @@ import {
   NSpin,
   NScrollbar,
   NEmpty,
-  NModal,
-  NCard,
   useMessage
 } from 'naive-ui'
 import type { WorkspaceDirEntry, WorkspaceReadResult, WorkspaceConfig } from '@shared/ipc'
@@ -99,10 +97,6 @@ async function onEntryClick(entry: WorkspaceDirEntry): Promise<void> {
   } finally {
     previewing.value = false
   }
-}
-
-function formatDate(ms: number): string {
-  return new Date(ms).toLocaleString()
 }
 
 onMounted(loadConfig)

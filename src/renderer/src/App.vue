@@ -86,7 +86,8 @@ async function selectAgent(id: string): Promise<void> {
     const s = await sessionStore.create({
       agentId: id,
       model: agentStore.activeAgent?.defaultModel ?? modelStore.defaultModelId,
-      protocol: agentStore.activeAgent?.defaultProtocol ?? modelStore.defaultProtocol
+      protocol: agentStore.activeAgent?.defaultProtocol ?? modelStore.defaultProtocol,
+      baseUrl: modelStore.getByModelId(agentStore.activeAgent?.defaultModel ?? modelStore.defaultModelId)?.baseUrl || ''
     })
     await selectSession(s.id)
   }
@@ -103,10 +104,12 @@ async function selectSession(id: string): Promise<void> {
 async function newSession(): Promise<void> {
   if (!agentStore.activeAgentId) return
   const agent = agentStore.activeAgent
+  const modelId = agent?.defaultModel ?? modelStore.defaultModelId
   const s = await sessionStore.create({
     agentId: agentStore.activeAgentId,
-    model: agent?.defaultModel ?? modelStore.defaultModelId,
-    protocol: agent?.defaultProtocol ?? modelStore.defaultProtocol
+    model: modelId,
+    protocol: agent?.defaultProtocol ?? modelStore.defaultProtocol,
+    baseUrl: modelStore.getByModelId(modelId)?.baseUrl || ''
   })
   await selectSession(s.id)
 }

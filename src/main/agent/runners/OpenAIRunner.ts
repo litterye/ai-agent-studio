@@ -50,10 +50,13 @@ export class OpenAIRunner implements AgentRunner {
     const effectiveModel = ctx?.modelOverride ?? settings.model
     const effectiveVision = resolveVisionMode(effectiveModel, ctx?.visionModeOverride ?? 'text')
     const messages: ChatCompletionMessageParam[] = history
-      .map((m) => ({
-        role: m.role,
-        content: m.attachments?.length ? toOpenAIContent(m, effectiveVision) : m.content
-      }))
+      .map((m) => {
+        const content = m.attachments?.length ? toOpenAIContent(m, effectiveVision) : m.content
+        return {
+          role: m.role as 'user' | 'assistant',
+          content
+        }
+      }) as ChatCompletionMessageParam[]
     // OpenAI Chat Completions has no first-class system field; prepend one.
     if (ctx?.system) messages.unshift({ role: 'system', content: ctx.system })
     let finalText = ''
@@ -70,7 +73,7 @@ export class OpenAIRunner implements AgentRunner {
       trimMessages(messages as Array<{ role: string; content: unknown }>)
 
       const model = ctx?.modelOverride ?? settings.model
-      const { text, toolCalls, usage } = await this.streamOnce(runId, model, messages, sdkTools, cb)
+      const { text, toolCalls, usage } = await this.streamOnce(runId, model, messages, sdkTools, cb, ctx)
       if (cb.isCancelled()) return cb.emit({ type: 'cancelled', runId })
       if (text) finalText = text
 
@@ -87,7 +90,7 @@ export class OpenAIRunner implements AgentRunner {
       if (toolCalls.length === 0) {
         // Fire-and-forget memory extraction (don't block the done event)
         if (ctx?.sessionId) {
-          memoryService.extractAndStore(history, effectiveModel, 'openai', ctx.sessionId)
+          memoryService.extractAndStore(history, effectiveModel, 'openai', ctx.sessionId, ctx?.apiKeyOverride, ctx?.baseUrlOverride)
         }
         return cb.emit({ type: 'done', runId, finalText })
       }
@@ -143,9 +146,13 @@ export class OpenAIRunner implements AgentRunner {
     model: string,
     messages: ChatCompletionMessageParam[],
     tools: ChatCompletionTool[],
-    cb: AgentCallbacks
+    cb: AgentCallbacks,
+    ctx?: RunContext
   ): Promise<{ text: string; toolCalls: PartialToolCall[]; usage: { prompt_tokens: number; completion_tokens: number } | null }> {
-    const client = openaiClient.get()
+    const client = openaiClient.get({
+      apiKey: ctx?.apiKeyOverride,
+      baseURL: ctx?.baseUrlOverride
+    })
     const stream = await client.chat.completions.create({
       model,
       max_tokens: MAX_TOKENS,

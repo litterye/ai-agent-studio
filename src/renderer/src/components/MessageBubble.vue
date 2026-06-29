@@ -4,7 +4,6 @@ import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 import type { DisplayMessage } from '../stores/conversation'
-import type { AttachmentMeta } from '@shared/ipc'
 import ToolCallCard from './ToolCallCard.vue'
 
 const props = defineProps<{ message: DisplayMessage }>()

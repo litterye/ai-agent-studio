@@ -23,15 +23,18 @@ export const memoryService = {
   /**
    * Fire-and-forget: extract memories from the last exchange and store them.
    * Called after the agent run completes.
+   * apiKey/baseURL are passed from the RunContext so per-model keys work.
    */
   async extractAndStore(
     history: ChatMessage[],
     model: string,
     protocol: string,
-    sessionId: string
+    sessionId: string,
+    apiKey?: string,
+    baseURL?: string
   ): Promise<void> {
     try {
-      const candidates = await extractMemories(history, model, protocol)
+      const candidates = await extractMemories(history, model, protocol, apiKey, baseURL)
       for (const c of candidates) {
         memoryStore.create({
           type: c.type,
