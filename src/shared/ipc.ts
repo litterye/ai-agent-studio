@@ -348,6 +348,7 @@ export const IPC = {
   DialogOpenDirectory: 'dialog:open-directory',
   DialogOpenFiles: 'dialog:open-files',
   ShellOpenPath: 'shell:open-path',
+  ShellOpenExternal: 'shell:open-external',
   FileReadAsDataUrl: 'file:read-as-data-url',
   FileSaveClipboard: 'file:save-clipboard',
   SoulGet: 'soul:get',

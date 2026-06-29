@@ -164,7 +164,8 @@ const api = {
     openFiles: (): Promise<import('@shared/ipc').AttachmentMeta[]> => ipcRenderer.invoke(IPC.DialogOpenFiles)
   },
   shell: {
-    openPath: (path: string): Promise<string> => ipcRenderer.invoke(IPC.ShellOpenPath, path)
+    openPath: (path: string): Promise<string> => ipcRenderer.invoke(IPC.ShellOpenPath, path),
+    openExternal: (url: string): Promise<void> => ipcRenderer.invoke(IPC.ShellOpenExternal, url)
   },
   files: {
     readAsDataUrl: (path: string): Promise<string | null> => ipcRenderer.invoke(IPC.FileReadAsDataUrl, path),

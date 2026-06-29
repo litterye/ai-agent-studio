@@ -552,6 +552,10 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
     return err // empty string = success, otherwise error message
   })
 
+  ipcMain.handle(IPC.ShellOpenExternal, async (_e, url: string): Promise<void> => {
+    await shell.openExternal(url)
+  })
+
   ipcMain.handle(IPC.FileReadAsDataUrl, async (_e, filePath: string): Promise<string | null> => {
     try {
       const buf = readFileSync(filePath)

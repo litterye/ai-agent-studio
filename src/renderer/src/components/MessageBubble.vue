@@ -62,6 +62,16 @@ async function copyText(): Promise<void> {
     await navigator.clipboard.writeText(props.message.text)
   } catch { /* clipboard API may not be available */ }
 }
+
+function handleLinkClick(e: MouseEvent): void {
+  const target = e.target as HTMLElement
+  if (target.tagName !== 'A') return
+  const href = (target as HTMLAnchorElement).getAttribute('href')
+  if (href && /^https?:\/\//i.test(href)) {
+    e.preventDefault()
+    void window.api.shell.openExternal(href)
+  }
+}
 </script>
 
 <template>
@@ -110,7 +120,7 @@ async function copyText(): Promise<void> {
       />
 
       <!-- eslint-disable-next-line vue/no-v-html -->
-      <div v-if="message.text" class="md" v-html="rendered"></div>
+      <div v-if="message.text" class="md" v-html="rendered" @click="handleLinkClick"></div>
       <div v-else-if="message.streaming && !message.toolCalls.length" class="dots">
         ●●●
       </div>
