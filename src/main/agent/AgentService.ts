@@ -32,7 +32,8 @@ export class AgentService {
     cb: AgentCallbacks,
     sessionKey?: string | null,
     sessionId?: string | null,
-    overrides?: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string; apiKey?: string }
+    overrides?: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string; apiKey?: string },
+    isCron?: boolean
   ): Promise<void> {
     try {
       // Resolve model & protocol early — the system prompt needs them
@@ -60,7 +61,8 @@ export class AgentService {
         cwd,
         model,
         protocol,
-        memories: relevantMemories
+        memories: relevantMemories,
+        isCron
       })
 
       const ctx: RunContext = {
@@ -73,7 +75,8 @@ export class AgentService {
         baseUrlOverride: overrides?.baseUrl,
         visionModeOverride: overrides?.visionMode,
         apiKeyOverride: overrides?.apiKey,
-        sessionId: sessionId ?? undefined
+        sessionId: sessionId ?? undefined,
+        isCron
       }
 
       // Side-channel so the terminal builtin (and any other tool that
@@ -111,6 +114,7 @@ interface PromptParts {
   model: string
   protocol: string
   memories: MemoryRow[]
+  isCron?: boolean
 }
 
 function buildSystemPrompt(parts: PromptParts): string {
@@ -120,6 +124,31 @@ function buildSystemPrompt(parts: PromptParts): string {
   const soul = loadSoul()
   if (soul) {
     blocks.push(soul)
+  }
+
+  // ── Cron mode: headless execution instructions (Hermes slot #2) ─────
+  if (parts.isCron) {
+    blocks.push(
+      '# Cron / Scheduled Execution Mode\n' +
+      '\n' +
+      'You are running as an **automated scheduled (cron) job** — there is no human ' +
+      'watching your output in real time. Your response will be saved to a file and, ' +
+      'if a target session is configured, appended to that conversation.\n' +
+      '\n' +
+      '## Rules for cron execution\n' +
+      '- **Execute the task directly.** Do NOT ask questions, seek clarification, or ' +
+      'wait for a reply — no one will answer you.\n' +
+      '- **Do not make small talk.** No greetings, no "Sure!", no "Let me help you with that." ' +
+      'Just do the work and report results.\n' +
+      '- **Be thorough.** You have up to 100 turns — use them to complete the task, ' +
+      'not to chat.\n' +
+      '- **Finish with a clear result.** End with a summary of what was done and ' +
+      'whether it succeeded or failed.\n' +
+      '- If you encounter an unrecoverable error, explain what went wrong and stop — ' +
+      'do not loop retrying the same thing.\n' +
+      '- If the task requires interactive input, note that limitation and do your best ' +
+      'with what you have.'
+    )
   }
 
   // ── Stable tier: model self-awareness ──────────────────────────────

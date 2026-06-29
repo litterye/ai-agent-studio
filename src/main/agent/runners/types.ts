@@ -44,6 +44,9 @@ export interface RunContext {
   apiKeyOverride?: string
   /** DB session ID — used for memory extraction tracing. */
   sessionId?: string
+  /** True when this run is a headless cron job — tells the agent to execute
+   *  directly without asking questions or seeking clarification. Hermes parity. */
+  isCron?: boolean
 }
 
 /** A provider-specific implementation of the agentic loop. */

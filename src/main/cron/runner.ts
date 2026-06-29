@@ -1,13 +1,14 @@
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
+import { BrowserWindow } from 'electron'
 import { paths, ensureDir } from '../approvals/paths'
 import { jobStore } from './store'
 import { agentService } from '../agent/AgentService'
 import { agentStore } from '../db/agentStore'
 import { sessionStore } from '../db/sessionStore'
 import { messageStore } from '../db/messageStore'
-import type { AgentEvent, ChatMessage } from '@shared/ipc'
+import { IPC, type AgentEvent, type ChatMessage } from '@shared/ipc'
 
 /**
  * Run a cron job via `AgentService.run()` with callbacks that write results
@@ -117,7 +118,8 @@ export async function runJob(jobId: string): Promise<CronRunResult> {
       },
       sessionKey,
       sessionId,
-      { model, protocol }
+      { model, protocol },
+      true // isCron — tells the agent this is a headless scheduled execution
     )
 
     // Persist assistant response to the session
@@ -160,7 +162,20 @@ export async function runJob(jobId: string): Promise<CronRunResult> {
 
   jobStore.stampResult(jobId, { output, error, consecutiveFailures })
 
+  // Notify all renderer windows so they can refresh session list, cron list, etc.
+  broadcastCronEvent({ type: 'job-completed', jobId, sessionId })
+
   return { output, error, consecutiveFailures }
+}
+
+function broadcastCronEvent(payload: unknown): void {
+  try {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IPC.CronEvent, payload)
+    }
+  } catch {
+    /* best-effort — renderer might not be open */
+  }
 }
 
 function writeOutput(jobId: string, output: string): void {

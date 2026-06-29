@@ -644,7 +644,7 @@ function enrichJob(job: import('../cron/types').CronJob): CronJobDTO {
   let sessionTitle: string | undefined
   if (job.sessionId) {
     const s = sessionStore.getById(job.sessionId)
-    sessionTitle = s?.title
+    sessionTitle = s?.title ?? `[已删除] ${job.sessionId.slice(0, 8)}…`
   }
   return { ...job, sessionTitle }
 }

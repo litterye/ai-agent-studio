@@ -396,10 +396,19 @@ const columns: DataTableColumns<CronJobDTO> = [
     render: (row) => scheduleDisplay(row)
   },
   {
-    title: '目标会话', key: 'sessionTitle', width: 120,
-    render: (row) => row.sessionId
-      ? h(NText, { depth: '3', style: 'font-size:12px' }, () => row.sessionTitle ?? row.sessionId)
-      : h(NText, { depth: '3', style: 'font-size:11px; font-style:italic' }, () => '自动创建')
+    title: '目标会话', key: 'sessionTitle', width: 135,
+    render: (row) => {
+      if (!row.sessionId) {
+        return h(NText, { depth: '3', style: 'font-size:11px; font-style:italic' }, () => '自动创建')
+      }
+      const title = row.sessionTitle ?? row.sessionId
+      const deleted = title.startsWith('[已删除]')
+      return h(NText, {
+        depth: '3',
+        type: deleted ? 'warning' : undefined,
+        style: deleted ? 'font-size:11px; font-style:italic' : 'font-size:12px'
+      }, () => title)
+    }
   },
   {
     title: '下次运行', key: 'nextRunAt', width: 150,

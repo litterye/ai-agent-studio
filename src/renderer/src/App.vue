@@ -172,6 +172,19 @@ watch(activeKey, (key) => {
     void selectAgent(agentStore.activeAgentId)
   }
 })
+
+// Listen for cron events — refresh session list when cron creates/modifies sessions
+let unsubCron: (() => void) | null = null
+onMounted(() => {
+  unsubCron = window.api.cron.onEvent((event: any) => {
+    if (event?.type === 'job-completed' && agentStore.activeAgentId) {
+      // Refresh session list — cron may have created or updated a session
+      void sessionStore.load(agentStore.activeAgentId).catch(() => {})
+    }
+  })
+})
+// Note: onUnmounted is not readily available in <script setup> with this layout,
+// but the listener lifetime matches the app window lifetime, so it's fine.
 </script>
 
 <template>

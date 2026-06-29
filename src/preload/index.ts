@@ -97,7 +97,12 @@ const api = {
       ipcRenderer.invoke(IPC.CronRunNow, id),
     runHistory: (jobId: string): Promise<Array<{ timestamp: string; content: string; success: boolean; fileName: string }>> =>
       ipcRenderer.invoke(IPC.CronRunHistory, jobId),
-    status: (): Promise<CronStatusDTO> => ipcRenderer.invoke(IPC.CronStatus)
+    status: (): Promise<CronStatusDTO> => ipcRenderer.invoke(IPC.CronStatus),
+    onEvent: (cb: (event: unknown) => void): (() => void) => {
+      const listener = (_e: unknown, event: unknown): void => cb(event)
+      ipcRenderer.on(IPC.CronEvent, listener)
+      return () => ipcRenderer.removeListener(IPC.CronEvent, listener)
+    }
   },
   skills: {
     list: (): Promise<Array<{ relativePath: string; name: string; description: string; category: string; frontmatter: unknown }>> =>
