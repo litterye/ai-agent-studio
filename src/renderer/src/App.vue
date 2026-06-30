@@ -238,7 +238,7 @@ onMounted(() => {
                   + 新建
                 </NButton>
               </div>
-              <NScrollbar style="max-height: 240px">
+              <NScrollbar>
                 <div
                   v-for="s in sessionStore.sessions"
                   :key="s.id"
