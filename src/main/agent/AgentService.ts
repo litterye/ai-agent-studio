@@ -44,6 +44,14 @@ export class AgentService {
       // Resolve active toolsets for this session
       const approvals = getApprovalsConfig()
       const activeToolsets = new Set<string>(approvals.toolsets.default)
+
+      // Recursion guard — cron jobs cannot schedule more cron jobs (Hermes parity).
+      // Also exclude messaging/clarify toolsets that don't make sense headless.
+      if (isCron) {
+        activeToolsets.delete('cron')
+        activeToolsets.delete('messaging')
+        activeToolsets.delete('clarify')
+      }
       // If the user pinned a session cwd, inject it into the system prompt
       const workspace = getWorkspaceConfig()
       const cwd = resolveCwd(workspace.sessions[sessionKey ?? ''] || workspace.defaultCwd)

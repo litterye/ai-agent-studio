@@ -25,9 +25,140 @@ interface SearchResult {
 }
 
 /**
- * Use DuckDuckGo's HTML (non-JS) search endpoint. Returns a page of
- * structured results without needing an API key.
+ * Search backends ordered by preference.
+ * - Bing (cn.bing.com) — accessible in China, good Chinese + English results.
+ * - DuckDuckGo (lite) — fallback for regions where Bing is blocked.
  */
+const BACKENDS = [
+  {
+    name: 'bing',
+    search: bingSearch
+  },
+  {
+    name: 'ddg',
+    search: ddgSearch
+  }
+]
+
+async function trySearch(query: string): Promise<SearchResult[]> {
+  for (const backend of BACKENDS) {
+    try {
+      const results = await backend.search(query)
+      if (results.length > 0) return results
+    } catch (err) {
+      // Fall through to next backend
+      console.warn(`[websearch] ${backend.name} failed:`, err)
+    }
+  }
+  return []
+}
+
+// ─── Bing (cn.bing.com) — China-accessible ──────────────────────────────
+
+async function bingSearch(query: string): Promise<SearchResult[]> {
+  const params = new URLSearchParams({
+    q: query,
+    setlang: 'zh-Hans',
+    count: String(MAX_RESULTS)
+  })
+  const url = `https://cn.bing.com/search?${params.toString()}`
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
+      }
+    })
+
+    if (!res.ok) {
+      throw new Error(`Bing returned HTTP ${res.status}`)
+    }
+
+    const html = await res.text()
+    return parseBingHtml(html)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Parse Bing search results HTML.
+ *
+ * Bing result structure:
+ *   <li class="b_algo">
+ *     <h2><a href="...">Title</a></h2>
+ *     <div class="b_caption"><p>Snippet</p></div>
+ *     <p class="b_lineclamp2">Extra snippet (optional)</p>
+ *   </li>
+ */
+function parseBingHtml(html: string): SearchResult[] {
+  const results: SearchResult[] = []
+
+  // Split on <li class="b_algo"> to isolate each result block
+  const algoBlocks = html.split(/<li[^>]*class="[^"]*b_algo[^"]*"[^>]*>/gi)
+  // The first split chunk is page boilerplate — skip it
+  for (let i = 1; i < algoBlocks.length; i++) {
+    const block = algoBlocks[i]
+    // Stop at next </li> to avoid cross-block bleed
+    const endIdx = block.indexOf('</li>')
+    const chunk = endIdx !== -1 ? block.slice(0, endIdx) : block
+
+    // Extract title + URL from <h2><a>
+    const linkMatch = chunk.match(/<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/i)
+    if (!linkMatch) continue
+
+    let href = linkMatch[1]
+    // Resolve Bing redirect wrapper
+    href = resolveBingRedirect(href)
+    const title = stripTags(linkMatch[2]).trim()
+    if (!title || !href) continue
+
+    // Extract snippet — try b_caption first, then b_lineclamp2
+    let snippet = ''
+    const captionMatch = chunk.match(/<div[^>]*class="[^"]*b_caption[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
+    if (captionMatch) {
+      // Inside b_caption, look for <p> content
+      const pMatch = captionMatch[1].match(/<p[^>]*>([\s\S]*?)<\/p>/i)
+      if (pMatch) snippet = stripTags(pMatch[1]).trim()
+    }
+    if (!snippet) {
+      const lineMatch = chunk.match(/<p[^>]*class="[^"]*b_lineclamp\d*[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
+      if (lineMatch) snippet = stripTags(lineMatch[1]).trim()
+    }
+
+    results.push({ title, url: href, snippet })
+    if (results.length >= MAX_RESULTS) break
+  }
+
+  return results
+}
+
+/** Extract the real URL from Bing's redirect wrapper. */
+function resolveBingRedirect(href: string): string {
+  // Bing uses /ck/a?...&u=<encoded_url>&... pattern for click tracking
+  try {
+    if (href.includes('/ck/a') || href.includes('/search?') && href.includes('&u=')) {
+      const match = href.match(/[?&]u=([^&]+)/)
+      if (match) {
+        return decodeURIComponent(match[1])
+      }
+    }
+    return href
+  } catch {
+    return href
+  }
+}
+
+// ─── DuckDuckGo (lite) — fallback backend ───────────────────────────────
+
 async function ddgSearch(query: string): Promise<SearchResult[]> {
   const params = new URLSearchParams({ q: query })
   const url = `https://lite.duckduckgo.com/lite/?${params.toString()}`
@@ -55,23 +186,8 @@ async function ddgSearch(query: string): Promise<SearchResult[]> {
   }
 }
 
-/**
- * Parse DuckDuckGo Lite HTML results into structured objects.
- *
- * DDG Lite renders results in a table with links of class "result-link"
- * and snippets in <td> elements with class "result-snippet". Each row
- * anchors (<a>) have relative hrefs that DDG redirects through.
- */
 function parseDDGLite(html: string): SearchResult[] {
   const results: SearchResult[] = []
-
-  // DDG Lite pattern: each result is a <tr> containing:
-  //   <td><a rel="nofollow" class="result-link" href="...">Title</a></td>
-  //   <td class="result-snippet">Snippet text</td>
-  //
-  // The href may be a DDG redirect like
-  //   //duckduckgo.com/l/?uddg=https://example.com&...
-  // or a direct link. We extract the real URL.
 
   const rowRegex = /<tr[^>]*>[\s\S]*?<\/tr>/gi
   const linkRegex = /<a[^>]*class="result-link"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i
@@ -86,7 +202,6 @@ function parseDDGLite(html: string): SearchResult[] {
     let href = linkMatch[1]
     const title = stripTags(linkMatch[2]).trim()
 
-    // Resolve DDG redirect URLs to the real destination
     href = resolveDDGRedirect(href)
 
     const snippetMatch = snippetRegex.exec(row)
@@ -100,11 +215,7 @@ function parseDDGLite(html: string): SearchResult[] {
   return results.slice(0, MAX_RESULTS)
 }
 
-/** Extract the real URL from a DDG redirect link. */
 function resolveDDGRedirect(href: string): string {
-  // Patterns:
-  //   //duckduckgo.com/l/?uddg=https://example.com&rut=...
-  //   https://duckduckgo.com/l/?uddg=https://...
   try {
     if (href.includes('uddg=')) {
       const match = href.match(/uddg=([^&]+)/)
@@ -112,7 +223,6 @@ function resolveDDGRedirect(href: string): string {
         return decodeURIComponent(match[1])
       }
     }
-    // Relative protocol (//...)
     if (href.startsWith('//')) {
       href = 'https:' + href
     }
@@ -121,6 +231,8 @@ function resolveDDGRedirect(href: string): string {
     return href
   }
 }
+
+// ─── shared helpers ─────────────────────────────────────────────────────
 
 function stripTags(s: string): string {
   return s
@@ -131,6 +243,9 @@ function stripTags(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&#x3D;/g, '=')
     .trim()
 }
 
@@ -165,10 +280,10 @@ function filterResults(results: SearchResult[], allowed?: string[], blocked?: st
 const def: BuiltinToolDef<Input> = {
   name: 'WebSearch',
   description:
-    'Search the web using DuckDuckGo. Returns result blocks with titles, URLs, and snippets. ' +
+    'Search the web using Bing (primary, China-accessible) with DuckDuckGo fallback. ' +
+    'Returns result blocks with titles, URLs, and snippets. ' +
     'Use this to find documentation, answer current-events questions, or research topics. ' +
-    'Use `allowed_domains` or `blocked_domains` to filter results. ' +
-    'US-only results. For more details from a result page, use WebFetch.',
+    'Use `allowed_domains` or `blocked_domains` to filter results.',
   schema,
   jsonSchema: {
     type: 'object',
@@ -197,7 +312,7 @@ const def: BuiltinToolDef<Input> = {
     if (!query) throw new Error('Query must not be empty.')
     if (query.length > 400) throw new Error('Query too long (max 400 chars).')
 
-    const raw = await ddgSearch(query)
+    const raw = await trySearch(query)
     const filtered = filterResults(raw, input.allowed_domains, input.blocked_domains)
 
     if (filtered.length === 0) {
