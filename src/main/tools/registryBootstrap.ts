@@ -22,6 +22,7 @@ import { createTodoTool } from './builtin/todo'
 import { createDelegateTaskTool } from './builtin/delegateTask'
 import { createExecuteCodeTool } from './builtin/executeCode'
 import { createOcrImageTool } from './builtin/ocrImage'
+import { createCronManageTool } from './builtin/cronManage'
 
 /**
  * Register all builtin tools with the registry. Importing this module is
@@ -55,6 +56,7 @@ export function registerBuiltinTools(): void {
   toolRegistry.register(createDelegateTaskTool())
   toolRegistry.register(createExecuteCodeTool())
   toolRegistry.register(createOcrImageTool())
+  toolRegistry.register(createCronManageTool())
 }
 
 registerBuiltinTools()

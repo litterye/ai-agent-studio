@@ -8,7 +8,7 @@ import { paths, ensureDir } from './paths'
  * The migration loop below ensures existing configs on disk are patched
  * forward when a new toolset is registered here.
  */
-const REQUIRED_TOOLSETS = ['file', 'terminal', 'skills', 'web', 'browser', 'tasks']
+const REQUIRED_TOOLSETS = ['file', 'terminal', 'skills', 'web', 'browser', 'tasks', 'cron']
 
 /**
  * Zod schema for ~/.ai-agent-studio/config/approvals.yaml.
