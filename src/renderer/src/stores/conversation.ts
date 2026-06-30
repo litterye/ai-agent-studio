@@ -32,6 +32,24 @@ function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+/**
+ * Metadata for an in-flight agent run.
+ * Persisted across session switches so background runs can continue
+ * accumulating state and writing to their session's DB.
+ */
+interface RunMeta {
+  sessionId: string
+  assistantMessageId: number
+  text: string
+  thinking: string
+  toolCalls: ToolCallView[]
+  usage?: TokenUsage
+}
+
+function freshMeta(sessionId: string, assistantMessageId: number): RunMeta {
+  return { sessionId, assistantMessageId, text: '', thinking: '', toolCalls: [] }
+}
+
 export const useConversationStore = defineStore('conversation', () => {
   const messages = ref<DisplayMessage[]>([])
   const running = ref(false)
@@ -67,8 +85,125 @@ export const useConversationStore = defineStore('conversation', () => {
     memoryEvents.value = []
   }
 
+  /** All in-flight runs across sessions. Keyed by runId. */
+  const activeRuns = new Map<string, RunMeta>()
+
+  // ── helpers to persist accumulated state to DB ───────────────────────
+
+  function persistMeta(meta: RunMeta): void {
+    if (meta.assistantMessageId <= 0) return
+    void window.api.messages.update(meta.assistantMessageId, {
+      content: meta.text,
+      thinking: meta.thinking,
+      toolCallsJson: JSON.stringify(toolCallsToJson(meta.toolCalls)),
+      usageJson: meta.usage ? JSON.stringify(meta.usage) : undefined
+    }).catch(() => {})
+  }
+
+  /** Apply an event to a RunMeta accumulator. Returns true if UI should also update. */
+  function applyEvent(event: AgentEvent, meta: RunMeta): boolean {
+    const isActive = event.runId === currentRunId.value
+    const assistant = isActive ? messages.value[messages.value.length - 1] : null
+
+    switch (event.type) {
+      case 'text_delta':
+        meta.text += event.text
+        if (assistant && assistant.role === 'assistant') {
+          assistant.text = meta.text
+        }
+        persistMeta(meta)
+        break
+
+      case 'thinking_delta':
+        meta.thinking += event.text
+        if (assistant && assistant.role === 'assistant') {
+          assistant.thinking = meta.thinking
+        }
+        persistMeta(meta)
+        break
+
+      case 'tool_use':
+        meta.toolCalls.push({
+          id: event.id,
+          name: event.toolName,
+          input: event.input,
+          status: 'running'
+        })
+        if (assistant && assistant.role === 'assistant') {
+          assistant.toolCalls = [...meta.toolCalls]
+        }
+        persistMeta(meta)
+        break
+
+      case 'tool_result': {
+        const tc = meta.toolCalls.find((t) => t.id === event.id)
+        if (tc) {
+          tc.status = event.isError ? 'error' : 'success'
+          tc.result = event.content
+        }
+        if (assistant && assistant.role === 'assistant') {
+          assistant.toolCalls = [...meta.toolCalls]
+        }
+        persistMeta(meta)
+        break
+      }
+
+      case 'token_usage':
+        if (!meta.usage) {
+          meta.usage = { inputTokens: 0, outputTokens: 0 }
+        }
+        meta.usage.inputTokens += event.inputTokens
+        meta.usage.outputTokens += event.outputTokens
+        if (isActive) {
+          sessionTokens.value += event.inputTokens + event.outputTokens
+        }
+        if (assistant && assistant.role === 'assistant') {
+          assistant.usage = meta.usage ? { ...meta.usage } : undefined
+        }
+        break
+
+      case 'done':
+        if (event.finalText && !meta.text) meta.text = event.finalText
+        if (assistant && assistant.role === 'assistant' && event.finalText && !assistant.text) {
+          assistant.text = event.finalText
+        }
+        persistMeta(meta)
+        activeRuns.delete(event.runId)
+        if (isActive) finish()
+        return false // already handled termination
+
+      case 'error':
+        meta.text += `\n\n[Error] ${event.message}`
+        if (assistant && assistant.role === 'assistant') {
+          assistant.text = meta.text
+        }
+        persistMeta(meta)
+        activeRuns.delete(event.runId)
+        if (isActive) finish()
+        return false
+
+      case 'cancelled':
+        meta.text += meta.text ? '\n\n[Cancelled]' : '[Cancelled]'
+        if (assistant && assistant.role === 'assistant') {
+          assistant.text = meta.text
+        }
+        persistMeta(meta)
+        activeRuns.delete(event.runId)
+        if (isActive) finish()
+        return false
+    }
+    return true
+  }
+
+  // ── public API ───────────────────────────────────────────────────────
+
   /** Load persisted messages for the active session. */
   async function loadSession(sessionId: string): Promise<void> {
+    // Detach UI from the current run (but do NOT cancel it — the agent keeps
+    // running and events continue to be persisted to the correct session's DB).
+    running.value = false
+    currentRunId.value = null
+
     messages.value = []
     sessionTokens.value = 0
     // Subscribe to memory events for this session
@@ -83,6 +218,25 @@ export const useConversationStore = defineStore('conversation', () => {
     } catch (err) {
       console.error('[convo] load failed:', err)
     }
+
+    // Check if this session has a background run still in flight —
+    // re-attach the UI so streaming resumes in-place.
+    for (const [runId, meta] of activeRuns) {
+      if (meta.sessionId === sessionId) {
+        currentRunId.value = runId
+        running.value = true
+        // Restore the assistant message from accumulated meta
+        const lastMsg = messages.value[messages.value.length - 1]
+        if (lastMsg && lastMsg.role === 'assistant') {
+          lastMsg.text = meta.text
+          lastMsg.thinking = meta.thinking
+          lastMsg.toolCalls = [...meta.toolCalls]
+          lastMsg.usage = meta.usage ? { ...meta.usage } : undefined
+          lastMsg.streaming = true
+        }
+        break
+      }
+    }
   }
 
   /** History sent to the model: plain user/assistant text turns + attachments. */
@@ -92,9 +246,6 @@ export const useConversationStore = defineStore('conversation', () => {
       .map((m) => ({
         role: m.role,
         content: m.text,
-        // toRaw + spread (or JSON round-trip) are needed because Pinia wraps
-        // the attachments array in a reactive Proxy which Electron's structured
-        // clone cannot serialize.
         ...(m.attachments.length > 0 ? { attachments: JSON.parse(JSON.stringify(m.attachments)) } : {})
       }))
   }
@@ -104,80 +255,17 @@ export const useConversationStore = defineStore('conversation', () => {
     unsubscribe = window.api.agent.onEvent(handleEvent)
   }
 
+  /**
+   * Central event handler. All streaming events flow through here regardless
+   * of which session they belong to:
+   *  - Events from the active session update both the UI and the DB.
+   *  - Events from background sessions accumulate state and persist to the
+   *    correct session's DB, so no data is lost when switching back.
+   */
   async function handleEvent(event: AgentEvent): Promise<void> {
-    if (event.runId !== currentRunId.value) return
-    const assistant = messages.value[messages.value.length - 1]
-    if (!assistant || assistant.role !== 'assistant') return
-
-    switch (event.type) {
-      case 'text_delta':
-        assistant.text += event.text
-        // Persist to DB if we have a stored id
-        if (assistant.id > 0) {
-          void window.api.messages.update(assistant.id, { content: assistant.text }).catch(() => {})
-        }
-        break
-      case 'thinking_delta':
-        assistant.thinking += event.text
-        if (assistant.id > 0) {
-          void window.api.messages.update(assistant.id, { thinking: assistant.thinking }).catch(() => {})
-        }
-        break
-      case 'tool_use':
-        assistant.toolCalls.push({
-          id: event.id,
-          name: event.toolName,
-          input: event.input,
-          status: 'running'
-        })
-        if (assistant.id > 0) {
-          void window.api.messages.update(assistant.id, {
-            toolCallsJson: JSON.stringify(toolCallsToJson(assistant.toolCalls))
-          }).catch(() => {})
-        }
-        break
-      case 'tool_result': {
-        const tc = assistant.toolCalls.find((t) => t.id === event.id)
-        if (tc) {
-          tc.status = event.isError ? 'error' : 'success'
-          tc.result = event.content
-        }
-        if (assistant.id > 0) {
-          void window.api.messages.update(assistant.id, {
-            toolCallsJson: JSON.stringify(toolCallsToJson(assistant.toolCalls))
-          }).catch(() => {})
-        }
-        break
-      }
-      case 'token_usage':
-        if (!assistant.usage) {
-          assistant.usage = { inputTokens: 0, outputTokens: 0 }
-        }
-        assistant.usage.inputTokens += event.inputTokens
-        assistant.usage.outputTokens += event.outputTokens
-        sessionTokens.value += event.inputTokens + event.outputTokens
-        break
-      case 'done':
-        if (event.finalText && !assistant.text) assistant.text = event.finalText
-        if (assistant.id > 0) {
-          void window.api.messages.update(assistant.id, {
-            content: assistant.text,
-            thinking: assistant.thinking,
-            toolCallsJson: JSON.stringify(toolCallsToJson(assistant.toolCalls)),
-            usageJson: assistant.usage ? JSON.stringify(assistant.usage) : undefined
-          }).catch(() => {})
-        }
-        finish()
-        break
-      case 'error':
-        assistant.text += `\n\n[Error] ${event.message}`
-        finish()
-        break
-      case 'cancelled':
-        assistant.text += assistant.text ? '\n\n[Cancelled]' : '[Cancelled]'
-        finish()
-        break
-    }
+    const meta = activeRuns.get(event.runId)
+    if (!meta) return // unknown or already-finished run
+    applyEvent(event, meta)
   }
 
   function finish(): void {
@@ -238,6 +326,10 @@ export const useConversationStore = defineStore('conversation', () => {
     const runId = uid()
     currentRunId.value = runId
     running.value = true
+
+    // Track this run so events are routed to the correct session even after
+    // the user switches away.
+    activeRuns.set(runId, freshMeta(sessionId, assistantRow?.id ?? 0))
 
     // Include sessionId so main process can look up model/protocol overrides
     window.api.agent.send({
