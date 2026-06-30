@@ -54,7 +54,8 @@ import { messageStore } from '../db/messageStore'
 import { modelStore } from '../db/modelStore'
 import { paths } from '../approvals/paths'
 import { loadSoul, saveSoul, getDefaultSoul } from '../identity/soul'
-import { memoryService } from '../memory/MemoryService'
+import { memoryService, setMemoryEventEmitter } from '../memory/MemoryService'
+import type { MemoryEvent } from '@shared/ipc'
 
 interface PendingConfirm {
   resolve: (res: { approved: boolean; sessionAlways?: boolean }) => void
@@ -69,6 +70,11 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
   const emit = (event: AgentEvent): void => {
     getSender()?.send(IPC.AgentEvent, event)
   }
+
+  // Set up memory event emitter to forward errors to UI
+  setMemoryEventEmitter((event: MemoryEvent) => {
+    getSender()?.send(IPC.MemoryError, event)
+  })
 
   ipcMain.on(IPC.AgentSend, (_e, req: AgentSendRequest) => {
     cancelledRuns.delete(req.runId)

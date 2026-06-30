@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
-import { NInput, NButton, NModal, NSelect, NSpace, useMessage } from 'naive-ui'
+import { NInput, NButton, NModal, NSelect, NSpace, NAlert, useMessage } from 'naive-ui'
 import { useConversationStore } from '../stores/conversation'
 import { useSessionStore } from '../stores/sessions'
 import { useModelStore } from '../stores/models'
@@ -8,7 +8,7 @@ import MessageBubble from '../components/MessageBubble.vue'
 import ApprovalDialog from '../components/ApprovalDialog.vue'
 import ModelDialog from '../components/ModelDialog.vue'
 import SaveSkillDialog from '../components/SaveSkillDialog.vue'
-import type { ToolConfirmRequest, AttachmentMeta } from '@shared/ipc'
+import type { ToolConfirmRequest, AttachmentMeta, MemoryEvent } from '@shared/ipc'
 
 const convo = useConversationStore()
 const sessionStore = useSessionStore()
@@ -402,6 +402,20 @@ onUnmounted(() => unsubConfirm?.())
     </div>
 
     <div ref="scrollEl" class="messages">
+      <!-- Memory error notifications -->
+      <div v-for="(evt, idx) in convo.memoryEvents" :key="idx" class="memory-error-wrapper">
+        <NAlert
+          type="warning"
+          :title="`记忆提取失败 ${evt.timestamp}`"
+          :description="evt.displayMessage"
+          closable
+          @close="convo.dismissMemoryEvent(idx)"
+        >
+          <template v-if="evt.model">
+            <span class="memory-error-model">模型: {{ evt.model }}</span>
+          </template>
+        </NAlert>
+      </div>
       <div v-if="!convo.messages.length" class="empty">
         开始一段对话。模型可调用内置工具与已连接的 MCP 工具。
       </div>
@@ -539,6 +553,13 @@ onUnmounted(() => unsubConfirm?.())
   opacity: 0.5;
   text-align: center;
   margin-top: 80px;
+}
+.memory-error-wrapper {
+  margin-bottom: 12px;
+}
+.memory-error-model {
+  font-size: 12px;
+  opacity: 0.7;
 }
 .composer {
   padding: 12px 16px;

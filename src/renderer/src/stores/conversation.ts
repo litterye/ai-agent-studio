@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { AgentEvent, ChatMessage, MessageDTO, AttachmentMeta } from '@shared/ipc'
+import type { AgentEvent, ChatMessage, MessageDTO, AttachmentMeta, MemoryEvent } from '@shared/ipc'
 import { useSessionStore } from './sessions'
 
 export interface ToolCallView {
@@ -38,12 +38,41 @@ export const useConversationStore = defineStore('conversation', () => {
   const currentRunId = ref<string | null>(null)
   /** Total tokens consumed in the current session across all turns. */
   const sessionTokens = ref(0)
+  /** Memory-related events like API errors (for display to user). */
+  const memoryEvents = ref<MemoryEvent[]>([])
   let unsubscribe: (() => void) | null = null
+  let memoryUnsubscribe: (() => void) | null = null
+
+  /** Subscribe to memory events (model errors, etc.). */
+  function ensureMemorySubscribed(): void {
+    if (memoryUnsubscribe) return
+    memoryUnsubscribe = window.api.memory.onError((event: MemoryEvent) => {
+      // Add to list for display, keep last 10
+      memoryEvents.value.push(event)
+      if (memoryEvents.value.length > 10) {
+        memoryEvents.value = memoryEvents.value.slice(-10)
+      }
+      // Also log to console for debugging
+      console.warn('[memory] event:', event)
+    })
+  }
+
+  /** Dismiss a specific memory event by index. */
+  function dismissMemoryEvent(index: number): void {
+    memoryEvents.value.splice(index, 1)
+  }
+
+  /** Clear all memory events. */
+  function clearMemoryEvents(): void {
+    memoryEvents.value = []
+  }
 
   /** Load persisted messages for the active session. */
   async function loadSession(sessionId: string): Promise<void> {
     messages.value = []
     sessionTokens.value = 0
+    // Subscribe to memory events for this session
+    ensureMemorySubscribed()
     try {
       const rows: MessageDTO[] = await window.api.messages.load(sessionId)
       messages.value = rows.map(toDisplay)
@@ -239,7 +268,7 @@ export const useConversationStore = defineStore('conversation', () => {
     messages.value = []
   }
 
-  return { messages, running, sessionTokens, send, cancel, clear, loadSession }
+  return { messages, running, sessionTokens, memoryEvents, send, cancel, clear, loadSession, dismissMemoryEvent, clearMemoryEvents }
 })
 
 // ─── helpers ────────────────────────────────────────────────────────────

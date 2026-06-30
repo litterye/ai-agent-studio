@@ -10,6 +10,18 @@ export interface MemoryCandidate {
   importance: number
 }
 
+/** Model API error details for UI notification. */
+export interface ModelError {
+  code: string
+  message: string
+  statusCode?: number
+}
+
+/** Check if result contains a model error. */
+export function isModelError(result: MemoryCandidate[] | ModelError): result is ModelError {
+  return !Array.isArray(result) && 'code' in result && 'message' in result
+}
+
 const EXTRACTION_PROMPT = `You are a memory extraction system. Analyze this conversation exchange and identify any information worth remembering for future interactions. Return a JSON array of memory objects.
 
 A memory should be saved when:
@@ -65,6 +77,12 @@ export async function extractMemories(
       ? await askOpenAI(model, prompt, apiKey, baseURL)
       : await askAnthropic(model, prompt, apiKey, baseURL)
 
+    // Check if the API call returned an error
+    if (raw && typeof raw === 'object' && 'code' in raw && 'message' in raw) {
+      // Re-throw the model error so MemoryService can handle it
+      throw raw
+    }
+
     if (!raw) return []
 
     // Parse JSON — handle models that wrap in markdown fences
@@ -109,7 +127,7 @@ export async function extractMemories(
   }
 }
 
-async function askAnthropic(model: string, content: string, apiKey?: string, baseURL?: string): Promise<string | null> {
+async function askAnthropic(model: string, content: string, apiKey?: string, baseURL?: string): Promise<string | null | ModelError> {
   try {
     const client = anthropicClient.get({ apiKey, baseURL })
     const res = await client.messages.create({
@@ -120,13 +138,21 @@ async function askAnthropic(model: string, content: string, apiKey?: string, bas
     })
     const block = res.content.find((b) => b.type === 'text')
     return block && 'text' in block ? block.text : null
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[memory] askAnthropic error:', err)
-    return null
+    // Extract meaningful error info for UI notification
+    if (err && typeof err === 'object' && 'status' in err) {
+      const status = (err as { status: number }).status
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      const code = (err as { code?: string }).code || `HTTP_${status}`
+      return { code, message: errorMsg, statusCode: status }
+    }
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    return { code: 'UNKNOWN_ERROR', message: errorMsg }
   }
 }
 
-async function askOpenAI(model: string, content: string, apiKey?: string, baseURL?: string): Promise<string | null> {
+async function askOpenAI(model: string, content: string, apiKey?: string, baseURL?: string): Promise<string | null | ModelError> {
   try {
     const client = openaiClient.get({ apiKey, baseURL })
     const res = await client.chat.completions.create({
@@ -137,8 +163,16 @@ async function askOpenAI(model: string, content: string, apiKey?: string, baseUR
       stream: false
     })
     return res.choices[0]?.message?.content ?? null
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[memory] askOpenAI error:', err)
-    return null
+    // Extract meaningful error info for UI notification
+    if (err && typeof err === 'object' && 'status' in err) {
+      const status = (err as { status: number }).status
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      const code = (err as { code?: string }).code || `HTTP_${status}`
+      return { code, message: errorMsg, statusCode: status }
+    }
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    return { code: 'UNKNOWN_ERROR', message: errorMsg }
   }
 }

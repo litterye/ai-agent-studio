@@ -284,6 +284,19 @@ export interface MemoryEntryDTO {
   updatedAt: string
 }
 
+/** Memory-related events from main -> renderer. */
+export interface MemoryEvent {
+  /** Model API error (rate limit, auth failure, network issues, etc.) */
+  type: 'model_error'
+  message: string
+  /** Human-readable translated message */
+  displayMessage: string
+  /** The model that failed */
+  model?: string
+  /** Timestamp for display */
+  timestamp: string
+}
+
 export const IPC = {
   AgentSend: 'agent:send',
   AgentCancel: 'agent:cancel',
@@ -357,5 +370,6 @@ export const IPC = {
   AppGetWorkspaceBase: 'app:get-workspace-base',
   MemoryList: 'memory:list',
   MemoryDelete: 'memory:delete',
-  MemoryClear: 'memory:clear'
+  MemoryClear: 'memory:clear',
+  MemoryError: 'memory:error'
 } as const

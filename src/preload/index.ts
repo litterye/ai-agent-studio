@@ -12,6 +12,7 @@ import type {
   KeyStatus,
   McpServerConfigDTO,
   McpServerStatusDTO,
+  MemoryEvent,
   MessageDTO,
   ModelConfigDTO,
   ProviderSettings,
@@ -179,7 +180,12 @@ const api = {
   memory: {
     list: (): Promise<import('@shared/ipc').MemoryEntryDTO[]> => ipcRenderer.invoke(IPC.MemoryList),
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke(IPC.MemoryDelete, id),
-    clear: (): Promise<void> => ipcRenderer.invoke(IPC.MemoryClear)
+    clear: (): Promise<void> => ipcRenderer.invoke(IPC.MemoryClear),
+    onError: (cb: (event: MemoryEvent) => void): (() => void) => {
+      const listener = (_e: unknown, event: MemoryEvent): void => cb(event)
+      ipcRenderer.on(IPC.MemoryError, listener)
+      return () => ipcRenderer.removeListener(IPC.MemoryError, listener)
+    }
   },
   models: {
     list: (): Promise<ModelConfigDTO[]> => ipcRenderer.invoke(IPC.ModelList),
