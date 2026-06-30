@@ -173,6 +173,31 @@ watch(activeKey, (key) => {
   }
 })
 
+function formatRelativeTime(iso: string): string {
+  const now = Date.now()
+  const ts = new Date(iso).getTime()
+  const diff = now - ts
+
+  if (diff < 60_000) return '刚刚'
+
+  const minutes = Math.floor(diff / 60_000)
+  if (minutes < 60) return `${minutes}分钟前`
+
+  const hours = Math.floor(diff / 3_600_000)
+  if (hours < 24) return `${hours}小时前`
+
+  const days = Math.floor(diff / 86_400_000)
+  if (days === 1) return '昨天'
+  if (days === 2) return '前天'
+  if (days < 7) return `${days}天前`
+
+  const date = new Date(ts)
+  const yy = String(date.getFullYear()).slice(-2)
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${yy}/${mm}/${dd}`
+}
+
 // Listen for cron events — refresh session list when cron creates/modifies sessions
 let unsubCron: (() => void) | null = null
 onMounted(() => {
@@ -246,7 +271,10 @@ onMounted(() => {
                   :class="{ active: s.id === sessionStore.activeSessionId }"
                   @click="selectSession(s.id)"
                 >
-                  <span class="session-title">{{ s.title }}</span>
+                  <div class="session-row">
+                    <span class="session-title">{{ s.title }}</span>
+                    <span class="session-time">{{ formatRelativeTime(s.updatedAt) }}</span>
+                  </div>
                   <span class="session-model">{{ s.model }}</span>
                 </div>
                 <div
@@ -364,12 +392,26 @@ body,
 .session-item.active {
   background: rgba(42, 108, 240, 0.2);
 }
+.session-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
 .session-title {
   font-size: 13px;
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.session-time {
+  font-size: 10px;
+  opacity: 0.35;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .session-model {
   font-size: 10px;
