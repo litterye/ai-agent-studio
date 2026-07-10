@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { AgentTool } from '../types'
+import { getToolRunContext } from '../types'
 import { localBackend } from '../../workspace/localBackend'
 import { isWriteDenied } from '../../workspace/fileSafety'
 
@@ -30,7 +31,7 @@ export function createWriteFileTool(): AgentTool {
     },
     run: async (input) => {
       const { path, content } = Schema.parse(input)
-      const cwd = resolveCwd()
+      const cwd = getToolRunContext().cwd
       const abs = localBackend.resolvePath(path, cwd)
       const denied = isWriteDenied(abs)
       if (denied) return `Write denied: ${denied}`
@@ -38,8 +39,4 @@ export function createWriteFileTool(): AgentTool {
       return `Wrote ${content.length} bytes to ${abs}.`
     }
   }
-}
-
-function resolveCwd(): string {
-  return process.env['AGENT_STUDIO_CWD']?.trim() || process.cwd()
 }

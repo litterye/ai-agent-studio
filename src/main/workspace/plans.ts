@@ -15,11 +15,11 @@ export function writePlan(
     return { ok: false, error: `cwd is in the write denylist: ${cwd}` }
   }
 
-  const plansDir = join(cwd, '.plans')
+  const plansDir = join(cwd, 'plans')
   try {
     mkdirSync(plansDir, { recursive: true })
   } catch (err) {
-    return { ok: false, error: `Cannot create .plans/ dir: ${String(err)}` }
+    return { ok: false, error: `Cannot create plans/ dir: ${String(err)}` }
   }
 
   const now = new Date()

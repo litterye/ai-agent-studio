@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { AgentTool } from '../types'
+import { getToolRunContext } from '../types'
 import { localBackend } from '../../workspace/localBackend'
 
 const Schema = z.object({
@@ -33,7 +34,7 @@ export function createSearchFilesTool(): AgentTool {
     },
     run: async (input) => {
       const { path, query, glob, maxResults } = Schema.parse(input)
-      const cwd = process.env['AGENT_STUDIO_CWD']?.trim() || process.cwd()
+      const cwd = getToolRunContext().cwd
       const abs = localBackend.resolvePath(path, cwd)
       const hits = await localBackend.search(abs, query, glob, maxResults ?? 30)
       if (hits.length === 0) return `No matches found for "${query}" under ${abs}.`

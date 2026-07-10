@@ -10,6 +10,8 @@ import { buildSkillsIndex } from '../skills/promptBuilder'
 import { loadSoul } from '../identity/soul'
 import { memoryService } from '../memory/MemoryService'
 import type { MemoryRow } from '../db/memoryStore'
+import { planState } from './planState'
+import type { AgentTool } from '../tools/types'
 
 export type { AgentCallbacks, RunContext } from './runners/types'
 
@@ -57,7 +59,21 @@ export class AgentService {
       const cwd = resolveCwd(workspace.sessions[sessionKey ?? ''] || workspace.defaultCwd)
 
       // Build tool list filtered by active toolsets
-      const tools = await toolRegistry.forSession(activeToolsets)
+      let tools = await toolRegistry.forSession(activeToolsets)
+
+      // ── Plan mode: restrict to read-only + planning tools ──────────────
+      const planActive = planState.isActive(sessionId ?? undefined)
+      if (planActive) {
+        const planTools = new Set([
+          'read_file', 'search_files', 'list_directory',   // file-read ops
+          'skill_view', 'skill_manage',                     // skill introspection
+          'WebSearch', 'WebFetch',                          // web research
+          'todo',                                           // task tracking
+          'enter_plan_mode',                                // enter plan mode
+          'exit_plan_mode'                                  // exit + request approval
+        ])
+        tools = tools.filter((t) => planTools.has(t.name))
+      }
 
       // Retrieve relevant cross-session memories
       const lastUserMsg = history.filter((m) => m.role === 'user').pop()?.content ?? ''
@@ -70,7 +86,8 @@ export class AgentService {
         model,
         protocol,
         memories: relevantMemories,
-        isCron
+        isCron,
+        planGoal: planActive ? planState.getGoal(sessionId ?? undefined) : undefined
       })
 
       const ctx: RunContext = {
@@ -84,12 +101,13 @@ export class AgentService {
         visionModeOverride: overrides?.visionMode,
         apiKeyOverride: overrides?.apiKey,
         sessionId: sessionId ?? undefined,
-        isCron
+        isCron,
+        planGoal: planActive ? planState.getGoal(sessionId ?? undefined) : undefined
       }
 
-      // Side-channel so the terminal builtin (and any other tool that
-      // resolves relative paths without receiving cwd directly) can find
-      // the active cwd. Cleared after the run.
+      // Side-channel so the terminal builtin can find the active cwd without
+      // receiving it directly via input. Cleared after the run.
+      // Other tools use getToolRunContext() (set by executeToolCall) instead.
       process.env['AGENT_STUDIO_CWD'] = cwd
       try {
         const runner: AgentRunner =
@@ -123,6 +141,7 @@ interface PromptParts {
   protocol: string
   memories: MemoryRow[]
   isCron?: boolean
+  planGoal?: string
 }
 
 function buildSystemPrompt(parts: PromptParts): string {
@@ -132,6 +151,44 @@ function buildSystemPrompt(parts: PromptParts): string {
   const soul = loadSoul()
   if (soul) {
     blocks.push(soul)
+  }
+
+  // ── Plan mode (slot #1.5 — high priority, right after identity) ─────
+  if (parts.planGoal) {
+    blocks.push(
+      '# Plan Mode\n' +
+      '\n' +
+      'You are currently in **Plan Mode** — a read-only exploration and design phase.\n' +
+      'You must NOT edit, write, or modify any source files. Your tools are restricted\n' +
+      'to read-only operations.\n' +
+      '\n' +
+      `**Plan goal:** ${parts.planGoal}\n` +
+      '\n' +
+      '## What you MUST do\n' +
+      '- Explore the codebase to understand the current architecture, patterns, and constraints.\n' +
+      '- Use read-only tools (`read_file`, `search_files`, `list_directory`, `WebSearch`) to research.\n' +
+      '- Ask the user clarifying questions when requirements are ambiguous.\n' +
+      '- Present design options with trade-offs for key decisions.\n' +
+      '- Build a detailed, step-by-step implementation plan.\n' +
+      '- Write the final plan to `plan.md` using the `exit_plan_mode` tool.\n' +
+      '\n' +
+      '## What you must NOT do\n' +
+      '- **Do NOT edit source files.** You have no write tools available.\n' +
+      '- **Do NOT execute terminal commands.** You are here to plan, not to build.\n' +
+      '- **Do NOT implement anything.** Save that for after the plan is approved.\n' +
+      '- **Do NOT skip the exploration phase.** Understand the codebase before designing.\n' +
+      '\n' +
+      '## Exit condition\n' +
+      'When your plan is complete and written to `plan.md`, call the `exit_plan_mode` tool\n' +
+      'to signal completion. The user will review and approve your plan before implementation\n' +
+      'begins.\n' +
+      '\n' +
+      '## Important\n' +
+      '- You share the same agentic loop as normal mode — the only difference is restricted tools\n' +
+      '  and these planning instructions.\n' +
+      '- The plan file is the primary deliverable. Make it thorough enough that someone else\n' +
+      '  could implement from it without asking further questions.'
+    )
   }
 
   // ── Cron mode: headless execution instructions (Hermes slot #2) ─────

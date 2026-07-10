@@ -92,6 +92,10 @@ export interface AgentSendRequest {
   sessionId?: string
   /** Optional per-request vision mode override. Falls back to model config. */
   visionMode?: VisionMode
+  /** When set, the agent runs in plan mode: system prompt is modified to
+   *  restrict the agent to exploration and planning only. Write tools are
+   *  filtered out. The goal string is injected into the plan instructions. */
+  planMode?: { goal: string }
 }
 
 // ─── Agent / Session / Message DTOs ────────────────────────────────────

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { AgentTool, BuiltinToolDef } from '../types'
+import { getToolRunContext } from '../types'
 
 /**
  * Per-session in-memory task list. Keyed by runId (== session key).
@@ -45,8 +46,8 @@ const def: BuiltinToolDef<Input> = {
   emoji: '✅',
   maxResultSizeChars: 10_000,
   async handler(input) {
-    // Use a synthetic session key from env (set by AgentService)
-    const sessionKey = process.env['AGENT_STUDIO_CWD'] ?? 'default'
+    const ctx = getToolRunContext()
+    const sessionKey = ctx.sessionId ?? ctx.cwd
     let list = tasks.get(sessionKey)
     if (!list) {
       list = []

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { AgentTool } from '../types'
+import { getToolRunContext } from '../types'
 import { localBackend } from '../../workspace/localBackend'
 
 const Schema = z.object({
@@ -27,7 +28,7 @@ export function createListDirectoryTool(): AgentTool {
     },
     run: async (input) => {
       const { path } = Schema.parse(input)
-      const cwd = process.env['AGENT_STUDIO_CWD']?.trim() || process.cwd()
+      const cwd = getToolRunContext().cwd
       const abs = localBackend.resolvePath(path, cwd)
       const entries = await localBackend.list(abs)
       if (entries.length === 0) return `Directory is empty: ${abs}`

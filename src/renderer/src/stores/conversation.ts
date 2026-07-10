@@ -284,21 +284,29 @@ export const useConversationStore = defineStore('conversation', () => {
 
     ensureSubscribed()
 
+    // ── Detect /plan prefix → enter plan mode ──────────────────────────
+    const trimmed = text.trim()
+    let planMode: { goal: string } | undefined
+    const planMatch = trimmed.match(/^\/plan\s+(.+)/)
+    if (planMatch) {
+      planMode = { goal: planMatch[1] }
+    }
+
     const atts = attachments ?? []
     const attsJson = atts.length > 0 ? JSON.stringify(atts) : '[]'
 
-    // Persist user message to DB
+    // Persist user message to DB (keep /plan prefix intact)
     const userRow = await window.api.messages.append({
       sessionId,
       role: 'user',
-      content: text.trim(),
+      content: trimmed,
       attachmentsJson: attsJson
     }).catch(() => null)
 
     messages.value.push({
       id: userRow?.id ?? 0,
       role: 'user',
-      text: text.trim(),
+      text: trimmed,
       thinking: '',
       toolCalls: [],
       attachments: atts,
@@ -336,12 +344,13 @@ export const useConversationStore = defineStore('conversation', () => {
       runId,
       messages: history,
       sessionKey: sessionId,
-      sessionId
+      sessionId,
+      ...(planMode ? { planMode } : {})
     })
 
     // Update session title from first user message if it's still default
     if (sessionStore.activeSession?.title === '新对话') {
-      const title = text.trim().slice(0, 50) + (text.trim().length > 50 ? '…' : '')
+      const title = trimmed.slice(0, 50) + (trimmed.length > 50 ? '…' : '')
       void sessionStore.update(sessionId, { title })
     }
   }

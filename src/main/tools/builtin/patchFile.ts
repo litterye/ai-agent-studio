@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { AgentTool } from '../types'
+import { getToolRunContext } from '../types'
 import { localBackend } from '../../workspace/localBackend'
 import { isWriteDenied } from '../../workspace/fileSafety'
 
@@ -49,7 +50,7 @@ export function createPatchFileTool(): AgentTool {
     },
     run: async (input) => {
       const { path, patches } = Schema.parse(input)
-      const cwd = process.env['AGENT_STUDIO_CWD']?.trim() || process.cwd()
+      const cwd = getToolRunContext().cwd
       const abs = localBackend.resolvePath(path, cwd)
       const denied = isWriteDenied(abs)
       if (denied) return `Patch denied: ${denied}`

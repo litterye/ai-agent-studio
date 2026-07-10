@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { spawn } from 'child_process'
 import type { AgentTool, BuiltinToolDef } from '../types'
+import { getToolRunContext } from '../types'
 
 const schema = z.object({
   command: z.string().min(1).describe('The command line to execute.'),
@@ -43,11 +44,10 @@ const def: BuiltinToolDef<Input> = {
       : (process.env['SHELL'] ?? '/bin/sh')
     const args = isWin ? ['/d', '/s', '/c', input.command] : ['-c', input.command]
 
-    // Resolve cwd: input.cwd > env hint > process.cwd
+    // Resolve cwd: input.cwd > tool context > process.cwd
     let cwd = input.cwd?.trim() || null
     if (!cwd) {
-      const envCwd = process.env['AGENT_STUDIO_CWD']?.trim()
-      cwd = envCwd || process.cwd()
+      cwd = getToolRunContext().cwd
     }
 
     const timeout = input.timeoutMs ?? DEFAULT_TIMEOUT_MS

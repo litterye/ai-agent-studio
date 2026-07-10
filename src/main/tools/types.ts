@@ -1,5 +1,31 @@
 import type { z } from 'zod'
 
+/**
+ * Per-invocation context passed to tool handlers.
+ * Set by the agent loop before each tool.run() and cleared after.
+ * Tools read this instead of relying on environment variables.
+ */
+export interface ToolRunContext {
+  cwd: string
+  sessionId?: string | null
+  activeToolsets?: Set<string>
+}
+
+let _currentToolCtx: ToolRunContext | null = null
+
+/** Set the context for the current tool invocation. Called by the agent loop. */
+export function setToolRunContext(ctx: ToolRunContext | null): void {
+  _currentToolCtx = ctx
+}
+
+/** Read the context of the current tool invocation. Tools call this in their handler. */
+export function getToolRunContext(): ToolRunContext {
+  if (!_currentToolCtx) {
+    return { cwd: process.cwd() }
+  }
+  return _currentToolCtx
+}
+
 /** JSON Schema object passed to the Anthropic SDK as input_schema. */
 export interface JsonSchema {
   type: 'object'

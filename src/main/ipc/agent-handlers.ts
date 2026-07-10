@@ -56,6 +56,7 @@ import { paths } from '../approvals/paths'
 import { loadSoul, saveSoul, getDefaultSoul } from '../identity/soul'
 import { memoryService, setMemoryEventEmitter } from '../memory/MemoryService'
 import type { MemoryEvent } from '@shared/ipc'
+import { planState } from '../agent/planState'
 
 interface PendingConfirm {
   resolve: (res: { approved: boolean; sessionAlways?: boolean }) => void
@@ -78,6 +79,16 @@ export function registerIpcHandlers(getSender: () => WebContents | null): void {
 
   ipcMain.on(IPC.AgentSend, (_e, req: AgentSendRequest) => {
     cancelledRuns.delete(req.runId)
+
+    // ── Plan mode: enter / persist ────────────────────────────────────
+    if (req.sessionId) {
+      if (req.planMode) {
+        // First /plan message — enter plan mode for this session
+        planState.enter(req.sessionId, req.planMode.goal)
+      }
+      // If already in plan mode, stay in plan mode (plan mode is sticky per session)
+    }
+
     // Look up session overrides from DB
     let overrides: { model?: string; protocol?: string; effort?: string; baseUrl?: string; visionMode?: string; apiKey?: string } | undefined
     if (req.sessionId) {

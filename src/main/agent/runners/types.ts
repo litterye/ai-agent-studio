@@ -1,5 +1,6 @@
 import type { AgentEvent, ChatMessage, AttachmentMeta } from '@shared/ipc'
 import type { AgentTool } from '../../tools/types'
+import { setToolRunContext, type ToolRunContext } from '../../tools/types'
 import { evaluatePolicy, type PolicyContext, type PolicyReason } from '../../tools/policy'
 import { readFileSync } from 'fs'
 import { extname } from 'path'
@@ -47,6 +48,9 @@ export interface RunContext {
   /** True when this run is a headless cron job — tells the agent to execute
    *  directly without asking questions or seeking clarification. Hermes parity. */
   isCron?: boolean
+  /** When set, the agent is in plan mode — read-only exploration & design.
+   *  The goal string describes what the user wants planned. */
+  planGoal?: string
 }
 
 /** A provider-specific implementation of the agentic loop. */
@@ -117,6 +121,13 @@ export async function executeToolCall(
         content = 'Tool call denied by user.'
       } else {
         try {
+          // Set per-invocation context so tools can read cwd/sessionId
+          // without relying on environment variables.
+          setToolRunContext({
+            cwd: ctx?.cwd ?? process.cwd(),
+            sessionId: ctx?.sessionId,
+            activeToolsets: ctx?.activeToolsets
+          })
           content = await tool.run(call.input)
           if (tool.maxResultSizeChars && content.length > tool.maxResultSizeChars) {
             content =
@@ -126,6 +137,8 @@ export async function executeToolCall(
         } catch (err) {
           isError = true
           content = err instanceof Error ? err.message : String(err)
+        } finally {
+          setToolRunContext(null)
         }
       }
 
